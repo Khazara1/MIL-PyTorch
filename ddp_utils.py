@@ -1,6 +1,7 @@
 import torch
 import os
 import torch.distributed as dist
+from datetime import timedelta
 
 
 def init_distributed():
@@ -10,7 +11,7 @@ def init_distributed():
         rank = int(os.environ.get("RANK", "0"))
         world_size = int(os.environ.get("WORLD_SIZE", "1"))
         torch.cuda.set_device(local_rank)
-        dist.init_process_group(backend="nccl", init_method="env://")
+        dist.init_process_group(backend="nccl", init_method="env://", timeout=timedelta(minutes=30))
     else:
         local_rank, rank, world_size = 0, 0, 1
     return is_ddp, local_rank, rank, world_size
