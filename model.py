@@ -19,6 +19,8 @@ class AttentionMILModel(torch.nn.Module):
 
         self.classifier = torch.nn.Linear(emb_dim, output_dim)
 
+        self.dropout = torch.nn.Dropout(p=0.5)
+
     def forward(self, X, mask, bag_size, return_att=False):
         batch_size = int(X.shape[0] / bag_size)
 
@@ -40,6 +42,7 @@ class AttentionMILModel(torch.nn.Module):
         att_s = masked_softmax(att, mask)  # (batch_size, bag_size, 1)
         # att_s = torch.nn.functional.softmax(att, dim=1)
         X = torch.bmm(att_s.transpose(1, 2), X).squeeze(1)  # (batch_size, emb_dim)
+        X = self.dropout(X)
         y = self.classifier(X).squeeze(1)  # (batch_size,)
         if return_att:
             return y, att_s
