@@ -225,14 +225,17 @@ def train(model: torch.nn.Module,
                 log_metric(logger, val_precision, "val_precision")
                 log_metric(logger, val_recall, "val_recall")
 
+                if output_dim == 1:
+                    # Log train and validation confusion matrices
+                    logger.log({"best_val_conf_mat" : wandb.plot.confusion_matrix(probs=None,
+                            y_true=val_targets.tolist(), preds=(val_outputs > 0.5).tolist(),
+                            class_names=train_dl.dataset.classes, title="Validation confusion matrix")})
+                    
+                    logger.log({"best_train_conf_mat" : wandb.plot.confusion_matrix(probs=None,
+                            y_true=targets_list, preds=(torch.tensor(outputs_list) > 0.5).tolist(),
+                            class_names=train_dl.dataset.classes, title="Training confusion matrix")})
 
-
-            if avg_val_loss < best_val_loss:
-                best_val_loss = avg_val_loss
-                torch.save(model.state_dict(), f"{log_name}_best_attention_mil_model.pth")
-                best_weights = model.state_dict()
-
-                if logger is not None:
+                else:
                     # Log train and validation confusion matrices
                     logger.log({"best_val_conf_mat" : wandb.plot.confusion_matrix(
                             y_true=val_targets.tolist(), probs=val_outputs.tolist(),
@@ -241,6 +244,12 @@ def train(model: torch.nn.Module,
                     logger.log({"best_train_conf_mat" : wandb.plot.confusion_matrix(
                             y_true=targets_list, probs=outputs_list,
                             class_names=train_dl.dataset.classes, title="Training confusion matrix")})
+
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                torch.save(model.state_dict(), f"{log_name}_best_attention_mil_model.pth")
+                best_weights = model.state_dict()
+
 
     print("Model training complete and saved.")
     model.load_state_dict(best_weights)
