@@ -270,10 +270,63 @@ def main():
     device = train_config["device"]
 
     # Define image transformations
-    transform = v2.Compose([
-        v2.ToImage(), 
-        v2.ToDtype(torch.float32, scale=True)
-        ])
+    val_transform = A.Compose([
+        A.ToTensorV2(),
+    ])
+    
+    train_transform = A.Compose([
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
+        A.RandomBrightnessContrast(
+            brightness_limit=0.2,
+            contrast_limit=0.2,
+            p=0.5,
+        ),
+
+        A.Downscale(
+            scale_range=(0.7, 0.9),
+            interpolation_pair={
+                "downscale": cv2.INTER_AREA,
+                "upscale":   cv2.INTER_LINEAR,
+            },
+            p=0.3,
+        ),
+
+        A.Affine(
+            scale=(0.95, 1.05),
+            translate_percent={"x": 0.03, "y": 0.03},
+            rotate=(-7, 7),
+            interpolation=cv2.INTER_LINEAR,
+            mask_interpolation=cv2.INTER_NEAREST,
+            fit_output=False,
+            keep_ratio=True,
+            p=0.5,
+        ),
+
+        A.ElasticTransform(
+            alpha=20.0,
+            sigma=5.0,
+            interpolation=cv2.INTER_LINEAR,
+            border_mode=cv2.BORDER_CONSTANT,
+            p=0.2,
+        ),
+
+        A.GridDistortion(
+            num_steps=5,
+            distort_limit=0.2,
+            interpolation=cv2.INTER_LINEAR,
+            border_mode=cv2.BORDER_CONSTANT,
+            p=0.2,
+        ),
+
+        A.CoarseDropout(
+            num_holes_range=(1, 8),
+            hole_height_range=(0.03, 0.10),
+            hole_width_range=(0.03, 0.10),
+            fill=0,
+            p=0.3,
+        ),
+    ])
 
     # Create patcher used for splitting images into patches
     patcher = ImagePatcher(patch_size=train_config["patch_size"], overlap=train_config["overlap"])
@@ -286,10 +339,10 @@ def main():
         selected_classes = None
 
     # Create dataset and dataloader
-    train_dataset = MILDataset(dataset_path=os.path.join(args.data_dir, "train"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=transform)
+    train_dataset = MILDataset(dataset_path=os.path.join(args.data_dir, "train"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=train_transform)
     train_dataloader, train_sampler = create_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=True, sample_type=train_config["sample_type"], num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size)
 
-    val_dataset = MILDataset(dataset_path=os.path.join(args.data_dir, "val"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=transform)
+    val_dataset = MILDataset(dataset_path=os.path.join(args.data_dir, "val"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=val_transform)
     val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=train_config["batch_size"], shuffle=False, sample_type=None, num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size)
 
 

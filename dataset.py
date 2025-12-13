@@ -7,6 +7,7 @@ from image_patcher import ImagePatcher
 import os
 import numpy as np
 from PIL import Image
+import albumentations as A
 
 
 class MILDataset(Dataset):
@@ -15,9 +16,8 @@ class MILDataset(Dataset):
 
         # Prepare image transforms
         if transform is None:
-            self.transform = v2.Compose([
-                v2.ToImage(), 
-                v2.ToDtype(torch.float32, scale=True)
+            self.transform = A.Compose([
+                A.ToTensorV2(),
                 ])
         else:
             self.transform = transform
@@ -70,7 +70,20 @@ class MILDataset(Dataset):
             image = image.repeat(repeats=3, axis=-1)    # Grayscale to RGB
         image = (image - image.min()) / (image.max() - image.min())
 
-        image = self.transform(image)
+        # Convert to uint8 because that is what albumentations is expecting
+        if image.max() <= 1:
+            image = (image * 255).astype(np.uint8)
+
+        image = self.transform(image=image)["image"]
+
+        # If transformation to Tensor was not applied by albumentations (p=0.9) apply it manually
+        if isinstance(image, np.ndarray):
+            image = torch.tensor(image)
+            image = image.permute(2, 0, 1)
+
+        # Scale to [0, 1] range
+        image = image.to(torch.float32)
+        image /= 255
 
         c, h, w = image.shape
         self.image_patcher.get_tiles(h, w)
