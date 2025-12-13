@@ -94,7 +94,7 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
                 outputs = F.sigmoid(outputs)
                 labels = labels.to(torch.float32)
     
-            loss = criterion(outputs.squeeze(), labels)
+            loss = criterion(outputs, labels)
 
             losses_list.append(loss.item())
             val_loss += loss.item()
