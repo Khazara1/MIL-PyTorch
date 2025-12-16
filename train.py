@@ -76,10 +76,10 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
     targets_list = []
     losses_list = []
 
-    # if rank == 0:
-    iterator = tqdm(val_dl, desc="Validation")
-    # else:
-    #     iterator = val_dl
+    if rank == 0:
+        iterator = tqdm(val_dl, desc="Validation")
+    else:
+        iterator = val_dl
 
     model.eval()
     with torch.no_grad():
@@ -156,10 +156,10 @@ def train(model: torch.nn.Module,
         outputs_list = []
         targets_list = []
 
-        # if rank == 0:
-        iterator = tqdm(train_dl, desc=f"Epoch {epoch+1}/{num_epochs} - Training")
-        # else:
-        #     iterator = train_dl
+        if rank == 0:
+            iterator = tqdm(train_dl, desc=f"Epoch {epoch+1}/{num_epochs} - Training")
+        else:
+            iterator = train_dl
 
         model.train()
         for features, labels, masks, bags_length in iterator:
