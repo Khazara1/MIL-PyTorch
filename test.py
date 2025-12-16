@@ -17,6 +17,9 @@ import torch.nn.functional as F
 from sklearn.metrics import roc_curve
 import matplotlib.pyplot as plt
 import numpy as np
+import albumentations as A
+import yaml
+from typing import Dict
 
 
 def parse_args():
@@ -37,6 +40,13 @@ def parse_args():
     parser.add_argument("--ckpt-path", type=str, required=False, default=None, help="Path to model weights used for evaluation")
     parser.add_argument("--thresh", type=float, required=False, default=0.5, help="Cutoff threshold value")
     return parser.parse_args()
+
+
+# Parses train config defined as yaml file
+def parse_test_config() -> Dict:
+    with open("config/test_config.yaml", "r") as f:
+        test_config = yaml.safe_load(f)
+    return test_config
 
 
 def plot_roc_curve_with_best_threshold(roc_data, auroc_score=None):
@@ -159,6 +169,7 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
 
     return avg_val_loss, val_accuracy, val_f1_score, val_auprc, val_auroc, val_precision, val_recall, confusion_matrix, roc_data
 
+test_config = parse_test_config()
 
 def main():
     # Setup distributed data processing
@@ -169,7 +180,7 @@ def main():
         print(f"Available GPUs: {torch.cuda.device_count()}")
 
     args = parse_args()
-    device = args.device
+    device = test_config["device"]
 
     # Define image transformations
     transform = A.Compose([
@@ -177,7 +188,7 @@ def main():
     ])
 
     # Create patcher used for splitting images into patches
-    patcher = ImagePatcher(patch_size=args.patch_size, overlap=args.overlap)
+    patcher = ImagePatcher(patch_size=test_config["patch_size"], overlap=test_config["overlap"])
 
     # Select subset of classes
     if args.class_selection:
@@ -188,17 +199,17 @@ def main():
 
     val_dataset = MILDataset(dataset_csv=args.data_csv, image_patcher=patcher, dirs_with_classes=selected_classes, transform=transform)
 
-    val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=args.batch_size, shuffle=False, sample_type=None, num_workers=args.num_workers, is_ddp=is_ddp, rank=rank, world_size=world_size)
+    val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=test_config["batch_size"], shuffle=False, sample_type=None, num_workers=test_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size)
 
     n_classes = len(val_dataset.classes)
 
-    if args.output_dim == -1:
+    if test_config["output_dim"] == -1:
         if n_classes == 2:
             output_dim = 1
         else:
             output_dim = n_classes
     else:
-        output_dim = args.output_dim
+        output_dim = test_config["output_dim"]
 
     if args.ckpt_path is not None:
         print(f"Using checkpoint from: {args.ckpt_path}")
@@ -208,7 +219,8 @@ def main():
         state_dict = None
 
     # Initialize model, loss function, and optimizer
-    model = build_model(output_dim=output_dim, att_dim=args.attention_dim, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device, state_dict=state_dict)
+    model = build_model(output_dim=output_dim, att_dim=test_config["attention_dim"], is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device, state_dict=state_dict)
+    model.load_state_dict(state_dict)
 
     if output_dim == 1:
         criterion = torch.nn.BCELoss()
