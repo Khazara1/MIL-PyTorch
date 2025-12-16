@@ -1,11 +1,11 @@
 # General
-batch_size: 4
+batch_size: 2
 num_epochs: 100
 lr: 1.0e-4
-num_workers: 16
+num_workers: 4
 device: "cuda"
 
-output_dim: -1   # Number of output neurons (-1 to inherit from number of classes)
+output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
 
 # MIL specific
 patch_size: 224
@@ -13,5 +13,5 @@ overlap: 0.5  # Overlap between instances
 attention_dim: 128  # Linear layer for calculating attention weights is of shape [attention_dim x 1]
 
 # Data and metrics
-sample_type: None   # Data sampling method
+sample_type: oversample   # Data sampling method
 avg_method: None  # None means calculating metrics for each class separately
