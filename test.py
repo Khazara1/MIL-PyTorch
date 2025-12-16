@@ -21,7 +21,7 @@ import numpy as np
 
 def parse_args():
     parser = ArgumentParser(description="Train Attention-based MIL Model")
-    parser.add_argument("--data-dir", type=str, required=True, help="Path to the dataset directory")
+    parser.add_argument("--data-csv", type=str, required=True, help="Path to the dataset csv file")
     parser.add_argument("--batch-size", type=int, default=4, help="Batch size for training")
     parser.add_argument("--num-epochs", type=int, default=10, help="Number of training epochs")
     parser.add_argument("--learning-rate", type=float, default=1e-4, help="Learning rate for optimizer")
@@ -172,10 +172,9 @@ def main():
     device = args.device
 
     # Define image transformations
-    transform = v2.Compose([
-        v2.ToImage(), 
-        v2.ToDtype(torch.float32, scale=True)
-        ])
+    transform = A.Compose([
+        A.ToTensorV2(),
+    ])
 
     # Create patcher used for splitting images into patches
     patcher = ImagePatcher(patch_size=args.patch_size, overlap=args.overlap)
@@ -187,7 +186,7 @@ def main():
     else:
         selected_classes = None
 
-    val_dataset = MILDataset(dataset_path=os.path.join(args.data_dir, "val"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=transform)
+    val_dataset = MILDataset(dataset_csv=args.data_csv, image_patcher=patcher, dirs_with_classes=selected_classes, transform=transform)
 
     val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=args.batch_size, shuffle=False, sample_type=None, num_workers=args.num_workers, is_ddp=is_ddp, rank=rank, world_size=world_size)
 

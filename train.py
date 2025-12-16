@@ -52,7 +52,7 @@ def get_logger():
     
 
 
-def log_metric(logger: wandb.Run, metric: torch.Tensor, metric_name: str):
+def log_metric(logger, metric: torch.Tensor, metric_name: str):
     assert isinstance(metric, torch.Tensor), f"Expected metric to be torch.Tensor, found {metric_name} of type {type(metric)}"
 
     if metric.ndim != 0:
@@ -76,10 +76,10 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
     targets_list = []
     losses_list = []
 
-    if rank == 0:
-        iterator = tqdm(val_dl, desc="Validation")
-    else:
-        iterator = val_dl
+    # if rank == 0:
+    iterator = tqdm(val_dl, desc="Validation")
+    # else:
+    #     iterator = val_dl
 
     model.eval()
     with torch.no_grad():
@@ -135,7 +135,7 @@ def train(model: torch.nn.Module,
           rank: int, 
           world_size: int, 
           log_name: str, 
-          logger: wandb.Run = None):
+          logger = None):
     # Initialize variables to track best model
     best_val_loss = float('inf')
     best_weights = model.state_dict()
@@ -156,10 +156,10 @@ def train(model: torch.nn.Module,
         outputs_list = []
         targets_list = []
 
-        if rank == 0:
-            iterator = tqdm(train_dl, desc=f"Epoch {epoch+1}/{num_epochs} - Training")
-        else:
-            iterator = train_dl
+        # if rank == 0:
+        iterator = tqdm(train_dl, desc=f"Epoch {epoch+1}/{num_epochs} - Training")
+        # else:
+        #     iterator = train_dl
 
         model.train()
         for features, labels, masks, bags_length in iterator:
@@ -229,21 +229,21 @@ def train(model: torch.nn.Module,
                     # Log train and validation confusion matrices
                     logger.log({"best_val_conf_mat" : wandb.plot.confusion_matrix(probs=None,
                             y_true=val_targets.tolist(), preds=(val_outputs > 0.5).tolist(),
-                            class_names=train_dl.dataset.classes, title="Validation confusion matrix")})
+                            class_names=["0", "1"], title="Validation confusion matrix")})
                     
                     logger.log({"best_train_conf_mat" : wandb.plot.confusion_matrix(probs=None,
                             y_true=targets_list, preds=(torch.tensor(outputs_list) > 0.5).tolist(),
-                            class_names=train_dl.dataset.classes, title="Training confusion matrix")})
+                            class_names=["0", "1"], title="Training confusion matrix")})
 
                 else:
                     # Log train and validation confusion matrices
                     logger.log({"best_val_conf_mat" : wandb.plot.confusion_matrix(
                             y_true=val_targets.tolist(), probs=val_outputs.tolist(),
-                            class_names=train_dl.dataset.classes, title="Validation confusion matrix")})
+                            class_names=["0", "1"], title="Validation confusion matrix")})
                     
                     logger.log({"best_train_conf_mat" : wandb.plot.confusion_matrix(
                             y_true=targets_list, probs=outputs_list,
-                            class_names=train_dl.dataset.classes, title="Training confusion matrix")})
+                            class_names=["0", "1"], title="Training confusion matrix")})
 
             if avg_val_loss < best_val_loss:
                 best_val_loss = avg_val_loss
@@ -351,10 +351,10 @@ def main():
         selected_classes = None
 
     # Create dataset and dataloader
-    train_dataset = MILDataset(dataset_path=os.path.join(args.data_dir, "train"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=train_transform)
+    train_dataset = MILDataset(dataset_csv=os.path.join(args.data_dir, "train_split.csv"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=train_transform)
     train_dataloader, train_sampler = create_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=True, sample_type=train_config["sample_type"], num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size)
 
-    val_dataset = MILDataset(dataset_path=os.path.join(args.data_dir, "val"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=val_transform)
+    val_dataset = MILDataset(dataset_csv=os.path.join(args.data_dir, "val_split.csv"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=val_transform)
     val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=train_config["batch_size"], shuffle=False, sample_type=None, num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size)
 
 
@@ -381,7 +381,7 @@ def main():
 
     # Log additional params to wandb logger
     if wandb_logger is not None:
-        wandb_logger.config["classes"] = train_dataset.dirs_with_classes
+        wandb_logger.config["classes"] = train_dataset.classes
         wandb_logger.config["optimizer"] = type(optimizer)
         wandb_logger.config["is_ddp"] = is_ddp
         wandb_logger.config["world_size"] = world_size
