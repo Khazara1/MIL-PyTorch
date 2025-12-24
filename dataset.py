@@ -65,4 +65,4 @@ class MILDataset(Dataset):
         c, h, w = image.shape
         self.image_patcher.get_tiles(h, w)
         instances, instances_idx, instances_cords = self.image_patcher.convert_img_to_bag(image)
-        return instances, label
+        return instances, label, instances_idx, instances_cords
