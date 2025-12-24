@@ -115,7 +115,7 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
 
     model.eval()
     with torch.no_grad():
-        for features, labels, masks, bags_length in iterator:
+        for features, labels, masks, bags_length, instances_idx, instances_cords in iterator:
             # Move data to device
             features = features.to(device)
             labels = labels.to(device)
