@@ -4,7 +4,7 @@ from torchvision.models import resnet18, ResNet18_Weights
 
 
 class AttentionMILModel(torch.nn.Module):
-    def __init__(self, output_dim, att_dim):
+    def __init__(self, output_dim, att_dim, dropout_rate):
         super().__init__()
 
         # Feature extractor
@@ -19,7 +19,7 @@ class AttentionMILModel(torch.nn.Module):
 
         self.classifier = torch.nn.Linear(emb_dim, output_dim)
 
-        self.dropout = torch.nn.Dropout(p=0.5)
+        self.dropout = torch.nn.Dropout(p=dropout_rate)
 
     def forward(self, X, mask, bag_size, return_att=False):
         batch_size = int(X.shape[0] / bag_size)
