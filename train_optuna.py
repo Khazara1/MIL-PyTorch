@@ -280,9 +280,10 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     if rank == 0:
         params['patch_size'] = trial.suggest_categorical('patch_size', [64, 128, 256, 512])
         params['overlap'] = trial.suggest_categorical('overlap', [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
-        params['lr'] = trial.suggest_float('lr', 1e-6, 1e-3, log=True)
+        params['lr'] = trial.suggest_float('lr', 1e-5, 1e-3, log=True)
         params['att_dim'] = trial.suggest_categorical('att_dim', [16, 32, 64, 128, 256, 512, 1024])
         params['dropout_rate'] = trial.suggest_categorical('dropout_rate', [0, 0.2, 0.4, 0.5, 0.6])
+        params['weight_decay'] = trial.suggest_float('weight_decay', 1e-6, 1e-4, log=True)
 
     if is_ddp:
         object_list = [params]
@@ -294,6 +295,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     lr = params['lr']
     att_dim = params['att_dim']
     dropout_rate = params['dropout_rate']
+    weight_decay = params['weight_decay']
 
     if args.log_wandb and rank == 0 and is_ddp:     # If distributed, only log from rank 0
         wandb_logger = get_logger()
@@ -400,7 +402,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     else:
         criterion = torch.nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
 
     # Log additional params to wandb logger
     if wandb_logger is not None:
