@@ -137,7 +137,7 @@ def train(model: torch.nn.Module,
           log_name: str, 
           logger = None):
     # Initialize variables to track best model
-    best_val_loss = float('inf')
+    best_val_auprc = 0.0
     best_weights = model.state_dict()
     
     # Use correct metrics calculator for classification problem
@@ -245,8 +245,8 @@ def train(model: torch.nn.Module,
                             y_true=targets_list, probs=outputs_list,
                             class_names=["0", "1"], title="Training confusion matrix")})
 
-            if avg_val_loss < best_val_loss:
-                best_val_loss = avg_val_loss
+            if val_auprc > best_val_auprc:
+                best_val_auprc = val_auprc
                 torch.save(model.state_dict(), f"{log_name}_best_attention_mil_model.pth")
                 best_weights = model.state_dict()
 
@@ -257,6 +257,8 @@ def train(model: torch.nn.Module,
     
     if logger is not None:
         logger.log_model(path=f"{log_name}_attention_mil_model.pth", name="final_attention_mil_model")
+
+    return best_val_auprc
 
 
 args = parse_args()
@@ -387,7 +389,7 @@ def main():
         wandb_logger.config["world_size"] = world_size
 
     # Train the model
-    train(
+    best_val_auprc = train(
         model, 
         train_dataloader, 
         val_dataloader, 
