@@ -97,8 +97,6 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
                 outputs = model(features, masks, bags_length)
 
                 # If binary classification use sigmoid and transform labels to float
-                # if output_dim == 1:
-                #     outputs = F.sigmoid(outputs)
                 labels = labels.to(torch.float32)
         
                 loss = criterion(outputs, labels)
@@ -180,8 +178,6 @@ def train(model: torch.nn.Module,
                 # Model and criterion forward pass
                 outputs = model(features, masks, bags_length)
 
-                # if output_dim == 1:
-                #     outputs = F.sigmoid(outputs)
                 labels = labels.to(torch.float32)
 
                 loss = criterion(outputs, labels)
