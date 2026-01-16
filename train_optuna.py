@@ -101,6 +101,9 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
         
                 loss = criterion(outputs, labels)
 
+                if output_dim == 1:
+                    outputs = F.sigmoid(outputs) # For metrics calculation
+
             losses_list.append(loss.item())
             val_loss += loss.item()
             outputs_list.extend(outputs.detach().cpu().tolist())
@@ -181,6 +184,9 @@ def train(model: torch.nn.Module,
                 labels = labels.to(torch.float32)
 
                 loss = criterion(outputs, labels)
+
+                if output_dim == 1:
+                    outputs = F.sigmoid(outputs) # For metrics calculation
 
             # Model optimization step
             scaler.scale(loss).backward()
