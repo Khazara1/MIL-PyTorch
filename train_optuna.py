@@ -21,6 +21,8 @@ from typing import Dict
 import albumentations as A
 import cv2
 import optuna
+import torch.distributed as dist
+from functools import partial
 
 
 
@@ -265,20 +267,26 @@ def train(model: torch.nn.Module,
 args = parse_args()
 train_config = parse_train_config()
 
-def objective(trial):
-    patch_size = trial.suggest_categorical('patch_size', [64, 128, 256, 512])
-    overlap = trial.suggest_categorical('overlap', [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
-    lr = trial.suggest_float('lr', 1e-6, 1e-3, log=True)
-    att_dim = trial.suggest_categorical('att_dim', [16, 32, 64, 128, 256, 512, 1024])
-    dropout_rate = trial.suggest_categorical('dropout_rate', [0, 0.2, 0.4, 0.5, 0.6])
-
-
-    # Setup distributed data processing
-    is_ddp, local_rank, rank, world_size = init_distributed()
+def objective(trial, is_ddp, rank, world_size, local_rank, device):
+    params = {}
 
     if rank == 0:
-        print(f"DDP initialized: is_ddp={is_ddp}, world_size={world_size}")
-        print(f"Available GPUs: {torch.cuda.device_count()}")
+        params['patch_size'] = trial.suggest_categorical('patch_size', [64, 128, 256, 512])
+        params['overlap'] = trial.suggest_categorical('overlap', [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        params['lr'] = trial.suggest_float('lr', 1e-6, 1e-3, log=True)
+        params['att_dim'] = trial.suggest_categorical('att_dim', [16, 32, 64, 128, 256, 512, 1024])
+        params['dropout_rate'] = trial.suggest_categorical('dropout_rate', [0, 0.2, 0.4, 0.5, 0.6])
+
+    if is_ddp:
+        object_list = [params]
+        dist.broadcast_object_list(object_list, src=0)
+        params = object_list[0]
+
+    patch_size = params['patch_size']
+    overlap = params['overlap']
+    lr = params['lr']
+    att_dim = params['att_dim']
+    dropout_rate = params['dropout_rate']
 
     if args.log_wandb and rank == 0 and is_ddp:     # If distributed, only log from rank 0
         wandb_logger = get_logger()
@@ -288,8 +296,6 @@ def objective(trial):
         wandb_logger.log_model(path="model.py", name="attention_mil_model")
     else:
         wandb_logger = None
-
-    device = train_config["device"]
 
     # Define image transformations
     val_transform = A.Compose([
@@ -412,23 +418,57 @@ def objective(trial):
         world_size=world_size, 
         logger=wandb_logger,
         log_name=args.log_name)
+    
+    if rank == 0:
+        return -best_val_auprc
+    else:
+        return 0.0
 
+
+def main():
+    # Setup distributed data processing
+    is_ddp, local_rank, rank, world_size = init_distributed()
+
+    if rank == 0:
+        print(f"DDP initialized: is_ddp={is_ddp}, world_size={world_size}")
+        print(f"Available GPUs: {torch.cuda.device_count()}")
+        study = optuna.create_study()
+    else:
+        study = None
+
+    device = train_config["device"]
+    num_trials = train_config["num_trials"]
+
+    # Creates a function with some arguments already filled. We use it because optuna want function with one argument (trial)
+    objective_with_args = partial(
+        objective, 
+        is_ddp=is_ddp, 
+        rank=rank, 
+        world_size=world_size, 
+        local_rank=local_rank, 
+        device=device
+    )
+
+    if rank == 0:
+        study.optimize(objective_with_args, n_trials=num_trials)
+    else:
+        for _ in range(num_trials):
+            try:
+                objective_with_args(None) 
+            except Exception as e:
+                print(f"Rank {rank} failed: {e}")
+                break
+    
     # Distributed data processing cleanup
     if is_ddp:
         cleanup_distributed()
 
-    return -best_val_auprc  # Negative sign for minimization problem
-
-
-def main():
-    study = optuna.create_study()
-    study.optimize(objective, n_trials=8)
-
-    print("\n=== Best parameters: ===")
-    print(study.best_params)
-    print("\n=== Study: ===")
-    print("Best trials:", study.best_trials)
-    print("Best value:", study.best_value)
+    if rank == 0:
+        print("\n=== Best parameters: ===")
+        print(study.best_params)
+        print("\n=== Study: ===")
+        print("Best trials:", study.best_trials)
+        print("Best value:", study.best_value)
 
 if __name__ == "__main__":
     main()
