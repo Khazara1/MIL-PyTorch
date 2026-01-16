@@ -92,15 +92,16 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
             labels = labels.to(device)
             masks = masks.to(device)
 
-            # Model forward pass
-            outputs = model(features, masks, bags_length)
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                # Model forward pass
+                outputs = model(features, masks, bags_length)
 
-            # If binary classification use sigmoid and transform labels to float
-            if output_dim == 1:
-                outputs = F.sigmoid(outputs)
+                # If binary classification use sigmoid and transform labels to float
+                # if output_dim == 1:
+                #     outputs = F.sigmoid(outputs)
                 labels = labels.to(torch.float32)
-    
-            loss = criterion(outputs, labels)
+        
+                loss = criterion(outputs, labels)
 
             losses_list.append(loss.item())
             val_loss += loss.item()
@@ -164,6 +165,8 @@ def train(model: torch.nn.Module,
         else:
             iterator = train_dl
 
+        scaler = torch.amp.GradScaler()
+
         model.train()
         for features, labels, masks, bags_length, instances_idx, instances_cords in iterator:
             optimizer.zero_grad() # Zero the gradients
@@ -173,18 +176,20 @@ def train(model: torch.nn.Module,
             masks = masks.to(device)
             labels = labels.to(device)
 
-            # Model and criterion forward pass
-            outputs = model(features, masks, bags_length)
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                # Model and criterion forward pass
+                outputs = model(features, masks, bags_length)
 
-            if output_dim == 1:
-                outputs = F.sigmoid(outputs)
+                # if output_dim == 1:
+                #     outputs = F.sigmoid(outputs)
                 labels = labels.to(torch.float32)
 
-            loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels)
 
             # Model optimization step
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             epoch_loss += loss.item()
             outputs_list.extend(outputs.detach().cpu().tolist())
@@ -389,7 +394,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
     # Use correct criterion for binary/multiclass classification problem
     if output_dim == 1:
-        criterion = torch.nn.BCELoss()
+        criterion = torch.nn.BCEWithLogitsLoss()
     else:
         criterion = torch.nn.CrossEntropyLoss()
 
