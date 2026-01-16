@@ -10,6 +10,7 @@ from PIL import Image
 import albumentations as A
 import pandas as pd
 import pydicom
+import matplotlib.pyplot as plt
 
 
 class MILDataset(Dataset):
@@ -41,7 +42,10 @@ class MILDataset(Dataset):
         label = self.classes_mapping[label] # Label from string to int
         label = torch.tensor(label, dtype=torch.long)
 
-        image = pydicom.dcmread(dcm_path).pixel_array
+        if dcm_path.endswith(".dcm"):
+            image = pydicom.dcmread(dcm_path).pixel_array
+        else:
+            image = plt.imread(dcm_path)
 
         # Normalization
         image = np.array(image)
