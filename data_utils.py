@@ -43,6 +43,8 @@ def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_si
 
     Batch size is the batch size used per rank in distributed mode.
     """
+    g = torch.Generator()
+    g.manual_seed(0)
 
     targets = dataset.labels # Get all targets from the dataset
 
@@ -59,11 +61,11 @@ def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_si
             weighted_sampler = WeightedRandomSampler(weights=samples_weights, num_samples=len(samples_weights), replacement=True)
             
             # Create dataloader
-            dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True)
+            dataloader = DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g)
 
             return dataloader, weighted_sampler
         else:
-            return DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers, shuffle=False, pin_memory=True), None
+            return DataLoader(dataset, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers, shuffle=False, pin_memory=True, generator=g), None
     else:
         if rank == 0:
             all_idx = balance_indices(targets, sample_type=sample_type)
@@ -84,7 +86,7 @@ def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_si
 
         sampler = DistributedSampler(subset, num_replicas=world_size, rank=rank, shuffle=shuffle)
 
-        dataloader = DataLoader(subset, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers, sampler=sampler, pin_memory=True)
+        dataloader = DataLoader(subset, batch_size=batch_size, collate_fn=collate_fn, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g)
 
         return dataloader, sampler
 
