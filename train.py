@@ -89,15 +89,17 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
             labels = labels.to(device)
             masks = masks.to(device)
 
-            # Model forward pass
-            outputs = model(features, masks, bags_length)
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                # Model forward pass
+                outputs = model(features, masks, bags_length)
 
-            # If binary classification use sigmoid and transform labels to float
-            if output_dim == 1:
-                outputs = F.sigmoid(outputs)
+                # If binary classification use sigmoid and transform labels to float
                 labels = labels.to(torch.float32)
-    
-            loss = criterion(outputs, labels)
+        
+                loss = criterion(outputs, labels)
+
+                if output_dim == 1:
+                    outputs = F.sigmoid(outputs) # For metrics calculation
 
             losses_list.append(loss.item())
             val_loss += loss.item()
@@ -161,6 +163,8 @@ def train(model: torch.nn.Module,
         else:
             iterator = train_dl
 
+        scaler = torch.amp.GradScaler()
+
         model.train()
         for features, labels, masks, bags_length, instances_idx, instances_cords in iterator:
             optimizer.zero_grad() # Zero the gradients
@@ -170,18 +174,21 @@ def train(model: torch.nn.Module,
             masks = masks.to(device)
             labels = labels.to(device)
 
-            # Model and criterion forward pass
-            outputs = model(features, masks, bags_length)
+            with torch.autocast(device_type="cuda", dtype=torch.float16):
+                # Model and criterion forward pass
+                outputs = model(features, masks, bags_length)
 
-            if output_dim == 1:
-                outputs = F.sigmoid(outputs)
                 labels = labels.to(torch.float32)
 
-            loss = criterion(outputs, labels)
+                loss = criterion(outputs, labels)
+
+                if output_dim == 1:
+                    outputs = F.sigmoid(outputs) # For metrics calculation
 
             # Model optimization step
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
 
             epoch_loss += loss.item()
             outputs_list.extend(outputs.detach().cpu().tolist())
@@ -371,15 +378,15 @@ def main():
         output_dim = train_config["output_dim"]
 
     # Initialize model, loss function, and optimizer
-    model = build_model(output_dim=output_dim, att_dim=train_config["attention_dim"], is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
+    model = build_model(output_dim=output_dim, att_dim=train_config["attention_dim"], dropout_rate=train_config["dropout_rate"], is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
 
     # Use correct criterion for binary/multiclass classification problem
     if output_dim == 1:
-        criterion = torch.nn.BCELoss()
+        criterion = torch.nn.BCEWithLogitsLoss()
     else:
         criterion = torch.nn.CrossEntropyLoss()
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=train_config["lr"])
+    optimizer = torch.optim.AdamW(model.parameters(), lr=train_config["lr"], weight_decay=train_config["weight_decay"])
 
     # Log additional params to wandb logger
     if wandb_logger is not None:
