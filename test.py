@@ -211,15 +211,16 @@ def main():
     else:
         output_dim = test_config["output_dim"]
 
-    if args.ckpt_path is not None:
-        print(f"Using checkpoint from: {args.ckpt_path}")
-        state_dict = torch.load(args.ckpt_path, weights_only=True, map_location=device)
-        state_dict = {k.replace("module.", "", 1): v for k, v in state_dict.items()}
-    else:
-        state_dict = None
+    # if args.ckpt_path is not None:
+    #     print(f"Using checkpoint from: {args.ckpt_path}")
+    #     state_dict = torch.load(args.ckpt_path, weights_only=True, map_location=device)
+    #     # state_dict = {k.replace("module.", "", 1): v for k, v in state_dict.items()}
+    # else:
+    state_dict = None
 
     # Initialize model, loss function, and optimizer
-    model = build_model(output_dim=output_dim, att_dim=test_config["attention_dim"], is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device, state_dict=state_dict)
+    model = build_model(output_dim=output_dim, att_dim=test_config["attention_dim"], dropout_rate=0, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device, state_dict=state_dict)
+    state_dict = torch.load(args.ckpt_path, weights_only=True, map_location=device)
     model.load_state_dict(state_dict)
 
     if output_dim == 1:
