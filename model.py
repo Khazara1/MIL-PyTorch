@@ -52,3 +52,14 @@ class AttentionMILModel(torch.nn.Module):
             return y, att_s
         else:
             return y
+        
+
+class YourModelClass(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.model = resnet18(weights=ResNet18_Weights.DEFAULT)
+        self.model.fc = torch.nn.Linear(self.model.fc.in_features, 1)  # Binary classification
+
+    def forward(self, x):
+        # Define the forward pass of your model here
+        return self.model(x)

@@ -1,7 +1,6 @@
 import torch
 import torch.distributed as dist
 from torch import nn
-from model import AttentionMILModel
 from torch.nn.parallel import DistributedDataParallel
 
 
@@ -13,17 +12,17 @@ def deactivate_batchnorm(model):
         model.running_var = None
 
 
-def build_model(output_dim, att_dim, dropout_rate, is_ddp, rank, local_rank, state_dict=None, device="cuda" if torch.cuda.is_available() else "cpu"):
+def build_model(model_class, your_model_args, is_ddp, rank, local_rank, state_dict=None, device="cuda" if torch.cuda.is_available() else "cpu"):
     if is_ddp:
         if rank == 0:
-            model = AttentionMILModel(output_dim=output_dim, att_dim=att_dim, dropout_rate=dropout_rate)
+            model = model_class(*your_model_args)
             model.apply(deactivate_batchnorm)
             if state_dict is None:
                 sd = model.state_dict()
             else:
                 sd = state_dict
         else:
-            model = AttentionMILModel(output_dim=output_dim, att_dim=att_dim, dropout_rate=dropout_rate)
+            model = model_class(*your_model_args)
             model.apply(deactivate_batchnorm)
             sd = None
 
@@ -33,7 +32,7 @@ def build_model(output_dim, att_dim, dropout_rate, is_ddp, rank, local_rank, sta
         sd = obj_list[0]
         model.load_state_dict(sd)
     else:
-        model = AttentionMILModel(output_dim=output_dim, att_dim=att_dim, dropout_rate=dropout_rate)
+        model = model_class(*your_model_args)
         model.apply(deactivate_batchnorm)
     
     model = model.to(device)
