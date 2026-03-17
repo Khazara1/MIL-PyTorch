@@ -37,14 +37,14 @@ def collate_fn(batch):
     return features, labels, masks, max_bag_length, instances_idx, instances_cords
 
 
-def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_size=1, sample_type=None, shuffle=True):
+def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_size=1, sample_type=None, shuffle=True, seed=42):
     """
     Create a DataLoader for the given dataset, handling both distributed and non-distributed settings.
 
     Batch size is the batch size used per rank in distributed mode.
     """
     g = torch.Generator()
-    g.manual_seed(0)
+    g.manual_seed(seed)
 
     targets = dataset.labels # Get all targets from the dataset
 

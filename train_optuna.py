@@ -21,9 +21,22 @@ from typing import Dict
 import albumentations as A
 import cv2
 import optuna
+from optuna.samplers import TPESampler
 import torch.distributed as dist
 from functools import partial
+import numpy as np
+import random
 
+
+SEED = 42
+
+# Set seeds
+torch.manual_seed(SEED)
+np.random.seed(SEED)
+random.seed(SEED)
+
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 
 def parse_args():
@@ -84,6 +97,8 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
     else:
         iterator = val_dl
 
+    batch_idx = 0
+
     model.eval()
     with torch.no_grad():
         for features, labels, masks, bags_length, instances_idx, instances_cords in iterator:
@@ -108,6 +123,10 @@ def validate(model, val_dl, criterion, output_dim, is_ddp, rank, world_size, dev
             val_loss += loss.item()
             outputs_list.extend(outputs.detach().cpu().tolist())
             targets_list.extend(labels.detach().cpu().tolist())
+
+            batch_idx += 1
+            if batch_idx > 10:
+                break
 
     gathered_outputs = gather_from_ranks(outputs_list, is_ddp, world_size)
     gathered_targets = gather_from_ranks(targets_list, is_ddp, world_size)
@@ -168,6 +187,8 @@ def train(model: torch.nn.Module,
 
         scaler = torch.amp.GradScaler()
 
+        batch_idx = 0
+
         model.train()
         for features, labels, masks, bags_length, instances_idx, instances_cords in iterator:
             optimizer.zero_grad() # Zero the gradients
@@ -197,6 +218,10 @@ def train(model: torch.nn.Module,
             outputs_list.extend(outputs.detach().cpu().tolist())
             targets_list.extend(labels.detach().cpu().tolist())
 
+            batch_idx += 1
+            if batch_idx > 10:
+                break
+
         # Calculate train metrics
         avg_train_loss = torch.tensor(epoch_loss / len(train_dl))
         train_accuracy, train_f1_score, train_auprc, train_auroc, train_precision, train_recall, _ = metrics_calculator.calculate(outputs_list, targets_list)
@@ -217,6 +242,8 @@ def train(model: torch.nn.Module,
 
             # Print epoch summary
             print(f"Epoch [{epoch+1}/{num_epochs}], Train Loss: {avg_train_loss:.4f}, Val Loss: {avg_val_loss:.4f}")
+            print(f"\tTrain Accuracy: {train_accuracy:.4f}, Train F1 Score: {train_f1_score:.4f}, Train AUPRC: {train_auprc:.4f}, Train AUROC: {train_auroc:.4f}, Train Precision: {train_precision:.4f}, Train Recall: {train_recall:.4f}")
+            print(f"\tVal Accuracy: {val_accuracy:.4f}, Val F1 Score: {val_f1_score:.4f}, Val AUPRC: {val_auprc:.4f}, Val AUROC: {val_auroc:.4f}, Val Precision: {val_precision:.4f}, Val Recall: {val_recall:.4f}")
         
             # Logging to wandb
             if logger is not None:
@@ -363,7 +390,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
             fill=0,
             p=0.3,
         ),
-    ])
+    ], seed=SEED)
 
     # Create patcher used for splitting images into patches
     patcher = ImagePatcher(patch_size=patch_size, overlap=overlap)
@@ -376,11 +403,11 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         selected_classes = None
 
     # Create dataset and dataloader
-    train_dataset = MILDataset(dataset_csv=os.path.join(args.data_dir, "train_split_clean.csv"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=train_transform)
-    train_dataloader, train_sampler = create_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=True, sample_type=train_config["sample_type"], num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size)
+    train_dataset = MILDataset(dataset_csv=os.path.join(args.data_dir, "train_split.csv"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=train_transform)
+    train_dataloader, train_sampler = create_dataloader(train_dataset, batch_size=train_config["batch_size"], shuffle=True, sample_type=train_config["sample_type"], num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
 
-    val_dataset = MILDataset(dataset_csv=os.path.join(args.data_dir, "val_split_clean.csv"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=val_transform)
-    val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=train_config["batch_size"], shuffle=False, sample_type=None, num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size)
+    val_dataset = MILDataset(dataset_csv=os.path.join(args.data_dir, "val_split.csv"), image_patcher=patcher, dirs_with_classes=selected_classes, transform=val_transform)
+    val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=train_config["batch_size"], shuffle=False, sample_type=None, num_workers=train_config["num_workers"], is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
 
 
     n_classes = len(train_dataset.classes)
@@ -438,10 +465,12 @@ def main():
     # Setup distributed data processing
     is_ddp, local_rank, rank, world_size = init_distributed()
 
+    sampler = TPESampler(seed=42) 
+
     if rank == 0:
         print(f"DDP initialized: is_ddp={is_ddp}, world_size={world_size}")
         print(f"Available GPUs: {torch.cuda.device_count()}")
-        study = optuna.create_study()
+        study = optuna.create_study(sampler=sampler)
     else:
         study = None
 
