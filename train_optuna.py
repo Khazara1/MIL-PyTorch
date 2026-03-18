@@ -41,7 +41,6 @@ torch.backends.cudnn.benchmark = False
 
 
 # TODO: Change those values
-DATA_DIR = "data"   # Directory where train_split.csv and val_split.csv files are located
 LOG_NAME = strftime("%Y-%m-%d_%H:%M:%S", gmtime()) # Log name used for saving model and logging to wandb
 NUM_EPOCHS = 5
 NUM_TRIALS = 8
@@ -91,8 +90,6 @@ def validate(model, val_dl, criterion, is_ddp, rank, world_size, device):
     else:
         iterator = val_dl
 
-    batch_idx = 0
-
     model.eval()
     with torch.no_grad():
         for inputs, labels in iterator:
@@ -116,10 +113,6 @@ def validate(model, val_dl, criterion, is_ddp, rank, world_size, device):
             val_loss += loss.item()
             outputs_list.extend(outputs.detach().cpu().tolist())
             targets_list.extend(labels.detach().cpu().tolist())
-
-            batch_idx += 1
-            if batch_idx > 10:
-                break
 
     # Gather outputs, targets and losses from all ranks to calculate metrics on the whole validation set
     gathered_outputs = gather_from_ranks(outputs_list, is_ddp, world_size)
@@ -179,8 +172,6 @@ def train(model: torch.nn.Module,
 
         scaler = torch.amp.GradScaler()
 
-        batch_idx = 0
-
         model.train()
         for inputs, labels in iterator:
             optimizer.zero_grad() # Zero the gradients
@@ -210,10 +201,6 @@ def train(model: torch.nn.Module,
             epoch_loss += loss.item()
             outputs_list.extend(outputs.detach().cpu().tolist())
             targets_list.extend(labels.detach().cpu().tolist())
-
-            batch_idx += 1
-            if batch_idx > 10:
-                break
 
         # Calculate train metrics
         avg_train_loss = torch.tensor(epoch_loss / len(train_dl))
@@ -267,6 +254,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         dist.broadcast_object_list(object_list, src=0)
         params = object_list[0]
 
+    # TODO: Also change those parameters
     patch_size = params['patch_size']
     overlap = params['overlap']
     lr = params['lr']
@@ -346,9 +334,8 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     val_dataset = YourDataset(your_val_args, transform=val_transform)
     val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
 
-    if rank == 0:
-        save_first_n_images(train_dataloader, n=5, save_dir=f"train_images")
-        save_first_n_images(val_dataloader, n=5, save_dir=f"val_images")
+    save_first_n_images(train_dataloader, n=5, save_dir=f"train_images_rank{rank}")
+    save_first_n_images(val_dataloader, n=5, save_dir=f"val_images_rank{rank}")
 
     # Initialize model, loss function, and optimizer
     model = build_model(YourModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
