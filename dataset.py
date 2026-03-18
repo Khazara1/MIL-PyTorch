@@ -13,6 +13,10 @@ import pydicom
 import matplotlib.pyplot as plt
 
 
+def remove_spotmag(df: pd.DataFrame):
+    df.drop(df[df.spot_mag.notna()].index, inplace=True)
+
+
 class MILDataset(Dataset):
     def __init__(self, dataset_csv: str, image_patcher: ImagePatcher, dirs_with_classes: dict = None, transform=None) -> None:
         super().__init__()
@@ -85,9 +89,11 @@ class YourDataset(Dataset):
             self.transform = transform
 
         self.df = pd.read_csv(dataset_csv)
+        remove_spotmag(self.df)
+        
         self.classes_mapping = {label: idx for idx, label in enumerate(self.df["label"].unique())}
         
-        self.labels = torch.tensor(self.df["label"].map(lambda x: self.classes_mapping[x]))
+        self.labels = torch.tensor(self.df["label"].map(lambda x: self.classes_mapping[x]).tolist())
         self.classes = list(self.classes_mapping.keys())
 
     def __len__(self):
@@ -101,7 +107,7 @@ class YourDataset(Dataset):
         if dcm_path.endswith(".dcm"):
             image = pydicom.dcmread(dcm_path).pixel_array
         else:
-            image = plt.imread(dcm_path)
+            raise ValueError(f"Unsupported file format: {dcm_path}")
 
         # Normalization
         image = np.array(image)
