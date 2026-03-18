@@ -264,10 +264,12 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
     # Define image transformations
     val_transform = A.Compose([
+        A.Resize(512, 512), # TODO: Delete this line for your model
         A.ToTensorV2(),
     ])
     
     train_transform = A.Compose([
+        A.Resize(512, 512), # TODO: Delete this line for your model
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomBrightnessContrast(

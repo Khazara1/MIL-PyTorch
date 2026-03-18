@@ -251,10 +251,12 @@ def main():
 
     # Define image transformations
     val_transform = A.Compose([
+        A.Resize(224, 224), # TODO: Delete this line for your model
         A.ToTensorV2(),
     ])
     
     train_transform = A.Compose([
+        A.Resize(224, 224), # TODO: Delete this line for your model
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomBrightnessContrast(
