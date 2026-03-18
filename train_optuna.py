@@ -369,7 +369,7 @@ def main():
     # Setup distributed data processing
     is_ddp, local_rank, rank, world_size = init_distributed()
 
-    sampler = TPESampler(seed=42) 
+    sampler = TPESampler(seed=SEED) 
 
     if rank == 0:
         print(f"DDP initialized: is_ddp={is_ddp}, world_size={world_size}")
