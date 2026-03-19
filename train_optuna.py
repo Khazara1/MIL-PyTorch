@@ -264,12 +264,12 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
     # Define image transformations
     val_transform = A.Compose([
-        A.Resize(512, 512), # TODO: Delete this line for your model
+        A.Resize(224, 224), # TODO: Delete this line for your model
         A.ToTensorV2(),
     ])
     
     train_transform = A.Compose([
-        A.Resize(512, 512), # TODO: Delete this line for your model
+        A.Resize(224, 224), # TODO: Delete this line for your model
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomBrightnessContrast(
@@ -325,8 +325,8 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
 
     # TODO: Those values are just an example
-    your_train_args = "data/train_split.csv"
-    your_val_args = "data/val_split.csv"
+    your_train_args = "standarized_data/train_split_clean.csv"
+    your_val_args = "standarized_data/val_split_clean.csv"
     your_model_args = []
 
     # Create dataset and dataloader
@@ -336,8 +336,8 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     val_dataset = YourDataset(your_val_args, transform=val_transform)
     val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
 
-    save_first_n_images(train_dataloader, n=5, save_dir=f"train_images_rank{rank}")
-    save_first_n_images(val_dataloader, n=5, save_dir=f"val_images_rank{rank}")
+    save_first_n_images(train_dataloader, n=5, save_dir=f"optuna_train_images_trial{trial.number}_{LOG_NAME}")
+    save_first_n_images(val_dataloader, n=5, save_dir=f"optuna_val_images_trial{trial.number}_{LOG_NAME}")
 
     # Initialize model, loss function, and optimizer
     model = build_model(YourModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
