@@ -336,8 +336,9 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     val_dataset = YourDataset(your_val_args, transform=val_transform)
     val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
 
-    save_first_n_images(train_dataloader, n=5, save_dir=f"optuna_train_images_trial{trial.number}_{LOG_NAME}")
-    save_first_n_images(val_dataloader, n=5, save_dir=f"optuna_val_images_trial{trial.number}_{LOG_NAME}")
+    if rank == 0 and trial.number == 0:
+        save_first_n_images(train_dataloader, n=5, save_dir=f"optuna_train_images_{LOG_NAME}")
+        save_first_n_images(val_dataloader, n=5, save_dir=f"optuna_val_images_{LOG_NAME}")
 
     # Initialize model, loss function, and optimizer
     model = build_model(YourModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
