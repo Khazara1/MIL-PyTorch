@@ -30,7 +30,7 @@ from dataset import CroppedDataset as YourDataset
 from model import StandardImageModel as YourModelClass
 BACKBONE = "resnet18"
 OPTUNA_PARAMS_FILE = "config/optuna_params.yaml" # Path to yaml file with params for optuna
-MODEL_CONFIG_FILE = "config/model_config.yaml" # Path to yaml file with model params
+MODEL_CONFIG_FILE = "config/model_args.yaml" # Path to yaml file with model params
 
 SEED = 42
 
