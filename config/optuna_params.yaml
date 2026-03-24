@@ -1,0 +1,24 @@
+resnet18:
+  lr:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-05
+      high: 1.0e-03
+      log: true
+
+  dropout_rate:
+    type: suggest_categorical
+    kwargs:
+      choices: [0, 0.2, 0.4, 0.5, 0.6]
+
+  weight_decay:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-06
+      high: 1.0e-04
+      log: true
+
+  batch_size:
+    type: suggest_categorical
+    kwargs:
+      choices: [4, 8, 16]

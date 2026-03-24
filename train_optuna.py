@@ -21,15 +21,20 @@ from functools import partial
 import numpy as np
 import random
 import matplotlib.pyplot as plt
+import yaml
 
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
-from dataset import YourDataset
-from model import YourModelClass
-
+from dataset import CroppedDataset as YourDataset
+from model import StandardImageModel as YourModelClass
+BACKBONE = "resnet18"
+OPTUNA_PARAMS_FILE = "config/optuna_params.yaml" # Path to yaml file with params for optuna
+MODEL_CONFIG_FILE = "config/model_config.yaml" # Path to yaml file with model params
 
 SEED = 42
+
+DEBUG = False
 
 # Set seeds
 torch.manual_seed(SEED)
@@ -46,7 +51,11 @@ NUM_EPOCHS = 5
 NUM_TRIALS = 8
 AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro or None (to get separate metrics for each class)
 NUM_WORKERS = 16
-BATCH_SIZE = 2
+
+
+def load_yaml(yaml_path):
+    with open(yaml_path, 'r') as file:
+        return yaml.safe_load(file)
 
 
 def save_first_n_images(dataloader, n=5, save_dir="debug_images"):
@@ -240,36 +249,27 @@ def train(model: torch.nn.Module,
 def objective(trial, is_ddp, rank, world_size, local_rank, device):
     params = {}
 
+    search_space_cfg = load_yaml(OPTUNA_PARAMS_FILE)[BACKBONE]
+    model_cfg = load_yaml(MODEL_CONFIG_FILE)[BACKBONE]
+
     # TODO: Modify this so that is has all the parameters you want to optimize
     if rank == 0:
-        params['patch_size'] = trial.suggest_categorical('patch_size', [64, 128, 256, 512])
-        params['overlap'] = trial.suggest_categorical('overlap', [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
-        params['lr'] = trial.suggest_float('lr', 1e-5, 1e-3, log=True)
-        params['att_dim'] = trial.suggest_categorical('att_dim', [16, 32, 64, 128, 256, 512, 1024])
-        params['dropout_rate'] = trial.suggest_categorical('dropout_rate', [0, 0.2, 0.4, 0.5, 0.6])
-        params['weight_decay'] = trial.suggest_float('weight_decay', 1e-6, 1e-4, log=True)
+        for param_name, config in search_space_cfg.items():
+            suggest_method = getattr(trial, config['type'])
+            params[param_name] = suggest_method(name=param_name, **config['kwargs'])
 
+    trial_number = trial.number if rank == 0 else None
     if is_ddp:
         object_list = [params]
         dist.broadcast_object_list(object_list, src=0)
         params = object_list[0]
 
-    # TODO: Also change those parameters
-    patch_size = params['patch_size']
-    overlap = params['overlap']
-    lr = params['lr']
-    att_dim = params['att_dim']
-    dropout_rate = params['dropout_rate']
-    weight_decay = params['weight_decay']
-
     # Define image transformations
     val_transform = A.Compose([
-        A.Resize(224, 224), # TODO: Delete this line for your model
         A.ToTensorV2(),
     ])
     
     train_transform = A.Compose([
-        A.Resize(224, 224), # TODO: Delete this line for your model
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.RandomBrightnessContrast(
@@ -325,18 +325,19 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
 
     # TODO: Those values are just an example
-    your_train_args = "standarized_data/train_split_clean.csv"
-    your_val_args = "standarized_data/val_split_clean.csv"
-    your_model_args = []
+    your_train_args = "data/train_split_clean_cords_spot.csv"
+    your_val_args = "data/val_split_clean_cords_spot.csv"
+    your_model_args = model_cfg
+    your_model_args["params"] = params
 
     # Create dataset and dataloader
     train_dataset = YourDataset(your_train_args, transform=train_transform)
-    train_dataloader, train_sampler = create_dataloader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
+    train_dataloader, train_sampler = create_dataloader(train_dataset, batch_size=params['batch_size'], shuffle=True, sample_type="oversample", num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
 
     val_dataset = YourDataset(your_val_args, transform=val_transform)
-    val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
+    val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=params['batch_size'], shuffle=False, sample_type=None, num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
 
-    if rank == 0 and trial.number == 0:
+    if DEBUG and rank == 0 and trial_number == 0:
         save_first_n_images(train_dataloader, n=5, save_dir=f"optuna_train_images_{LOG_NAME}")
         save_first_n_images(val_dataloader, n=5, save_dir=f"optuna_val_images_{LOG_NAME}")
 
@@ -345,7 +346,8 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
     criterion = torch.nn.BCEWithLogitsLoss()
 
-    optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=params['lr'], weight_decay=params['weight_decay'])
+    trial_log_name = f"{BACKBONE}_{LOG_NAME}_trial_{trial_number}"
 
     # Train the model
     best_val_auprc = train(
@@ -360,7 +362,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         is_ddp=is_ddp,
         rank=rank,
         world_size=world_size, 
-        log_name=LOG_NAME)
+        log_name=trial_log_name)
     
     if rank == 0:
         return -best_val_auprc
