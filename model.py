@@ -54,8 +54,11 @@ def _load_tiny_ckpt_into_timm_convnext(model: nn.Module, ckpt_path: str) -> None
 
 
 class AttentionMILModel(torch.nn.Module):
-    def __init__(self, output_dim, att_dim, dropout_rate):
+    def __init__(self, output_dim, params):
         super().__init__()
+
+        att_dim = params["att_dim"]
+        dropout_rate = params["dropout_rate"]
 
         # Feature extractor
         self.resnet = resnet18(weights=ResNet18_Weights.DEFAULT)

@@ -176,7 +176,7 @@ class YourDataset(Dataset):
 
 #klasa do testu na np ResNet ze trzeba usunac spotmagi (w tej klasie sa wsyztkie zdj niewazne czy maja spotmagi i jakiego typu)
 class AllImagesDataset(Dataset):
-    def __init__(self, dataset_csv: str, transform=None) -> None:
+    def __init__(self, dataset_csv: str, transform=None, image_patcher=None) -> None:
         super().__init__()
 
         # Prepare image transforms
@@ -186,6 +186,8 @@ class AllImagesDataset(Dataset):
                 ])
         else:
             self.transform = transform
+
+        self.image_patcher = image_patcher
 
         self.df = pd.read_csv(dataset_csv)
         
@@ -227,7 +229,13 @@ class AllImagesDataset(Dataset):
         # Scale to [0, 1] range
         image = image.to(torch.float32)
 
-        return image, label
+        if self.image_patcher is None:
+            return image, label
+        else:
+            c, h, w = image.shape
+            self.image_patcher.get_tiles(h, w)
+            instances, instances_idx, instances_cords = self.image_patcher.convert_img_to_bag(image)
+            return instances, label, instances_idx, instances_cords
 
 # Dataset for training without spot_mags and with YOLO used for cropping the image
 class CroppedDataset(Dataset):

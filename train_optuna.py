@@ -4,7 +4,6 @@ from torch import nn
 from torch.utils.data import DataLoader
 from torch.utils.data.sampler import Sampler
 from image_patcher import ImagePatcher
-from dataset import MILDataset
 from metrics import BinaryMetricsCalculator
 from ddp_utils import init_distributed, cleanup_distributed, gather_from_ranks
 from data_utils import create_dataloader
@@ -26,9 +25,9 @@ import yaml
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
-from dataset import CroppedDataset as YourDataset
-from model import StandardImageModel as YourModelClass
-BACKBONE = "resnet18"
+from dataset import AllImagesDataset as DatasetClass
+from model import AttentionMILModel as ModelClass
+BACKBONE = "resnet18_mil"
 OPTUNA_PARAMS_FILE = "config/optuna_params.yaml" # Path to yaml file with params for optuna
 MODEL_CONFIG_FILE = "config/model_args.yaml" # Path to yaml file with model params
 
@@ -46,11 +45,13 @@ torch.backends.cudnn.benchmark = False
 
 
 # TODO: Change those values
-LOG_NAME = strftime("%Y-%m-%d_%H:%M:%S", gmtime()) # Log name used for saving model and logging to wandb
+LOG_NAME = f'{BACKBONE}_{strftime("%Y-%m-%d_%H:%M:%S", gmtime())}' # Log name used for saving model and logging to wandb
 NUM_EPOCHS = 5
 NUM_TRIALS = 8
 AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro or None (to get separate metrics for each class)
 NUM_WORKERS = 16
+
+is_mil = BACKBONE.endswith("_mil")
 
 
 def load_yaml(yaml_path):
@@ -101,14 +102,25 @@ def validate(model, val_dl, criterion, is_ddp, rank, world_size, device):
 
     model.eval()
     with torch.no_grad():
-        for inputs, labels in iterator:
-            # Move data to device
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+        for batch in iterator:
+            # Check if data is for standard model or MIL
+            if len(batch) == 2:
+                inputs, labels = batch
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+            else:
+                inputs, labels, masks, max_bag_length, instances_idx, instances_cords = batch
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                masks = masks.to(device)
+
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
                 # Model forward pass
-                logits = model(inputs).squeeze(1)
+                if is_mil:
+                    logits = model(inputs, masks, max_bag_length)
+                else:
+                    logits = model(inputs).squeeze(1)
 
                 # If binary classification use sigmoid and transform labels to float
                 labels = labels.to(torch.float32)
@@ -182,16 +194,26 @@ def train(model: torch.nn.Module,
         scaler = torch.amp.GradScaler()
 
         model.train()
-        for inputs, labels in iterator:
-            optimizer.zero_grad() # Zero the gradients
+        for batch in iterator:
+            # Check if data is for standard model or MIL
+            if len(batch) == 2:
+                inputs, labels = batch
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+            else:
+                inputs, labels, masks, max_bag_length, instances_idx, instances_cords = batch
+                inputs = inputs.to(device)
+                labels = labels.to(device)
+                masks = masks.to(device)
 
-            # Move data to device
-            inputs = inputs.to(device)
-            labels = labels.to(device)
+            optimizer.zero_grad() # Zero the gradients
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
                 # Model and criterion forward pass
-                logits = model(inputs).squeeze(1)
+                if is_mil:
+                    logits = model(inputs, masks, max_bag_length)
+                else:
+                    logits = model(inputs).squeeze(1)
 
                 labels = labels.to(torch.float32)
                 
@@ -323,6 +345,9 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         ),
     ], seed=SEED)
 
+    if is_mil:
+        patcher = ImagePatcher(patch_size=params["patch_size"], overlap=params["overlap"])
+
 
     # TODO: Those values are just an example
     your_train_args = "data/train_split_clean_cords_spot.csv"
@@ -331,18 +356,48 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     your_model_args["params"] = params
 
     # Create dataset and dataloader
-    train_dataset = YourDataset(your_train_args, transform=train_transform)
-    train_dataloader, train_sampler = create_dataloader(train_dataset, batch_size=params['batch_size'], shuffle=True, sample_type="oversample", num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
+    if is_mil:
+        train_dataset = DatasetClass(your_train_args, transform=train_transform, image_patcher=patcher)
+    else:
+        train_dataset = DatasetClass(your_train_args, transform=train_transform)
+    
+    train_dataloader, train_sampler = create_dataloader(
+        train_dataset, 
+        batch_size=params['batch_size'], 
+        shuffle=True, 
+        sample_type="oversample", 
+        num_workers=NUM_WORKERS, 
+        is_ddp=is_ddp, 
+        rank=rank, 
+        world_size=world_size, 
+        seed=SEED, 
+        is_mil=is_mil
+        )
 
-    val_dataset = YourDataset(your_val_args, transform=val_transform)
-    val_dataloader, val_sampler = create_dataloader(val_dataset, batch_size=params['batch_size'], shuffle=False, sample_type=None, num_workers=NUM_WORKERS, is_ddp=is_ddp, rank=rank, world_size=world_size, seed=SEED)
+    if is_mil:
+        val_dataset = DatasetClass(your_val_args, transform=val_transform, image_patcher=patcher)
+    else:
+        val_dataset = DatasetClass(your_val_args, transform=val_transform)
+    
+    val_dataloader, val_sampler = create_dataloader(
+        val_dataset, 
+        batch_size=params['batch_size'], 
+        shuffle=False, 
+        sample_type=None, 
+        num_workers=NUM_WORKERS, 
+        is_ddp=is_ddp, 
+        rank=rank, 
+        world_size=world_size, 
+        seed=SEED, 
+        is_mil=is_mil
+        )
 
     if DEBUG and rank == 0 and trial_number == 0:
         save_first_n_images(train_dataloader, n=5, save_dir=f"optuna_train_images_{LOG_NAME}")
         save_first_n_images(val_dataloader, n=5, save_dir=f"optuna_val_images_{LOG_NAME}")
 
     # Initialize model, loss function, and optimizer
-    model = build_model(YourModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
+    model = build_model(ModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
 
     criterion = torch.nn.BCEWithLogitsLoss()
 
