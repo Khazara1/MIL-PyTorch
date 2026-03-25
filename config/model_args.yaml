@@ -2,3 +2,20 @@ resnet18:
   backbone: "resnet18"
   num_classes: 1
   pretrained: True
+
+resnet50:
+  backbone: "resnet50"
+  num_classes: 1
+  pretrained: True
+
+resnet18_mil:
+  backbone: "resnet18"
+  output_dim: 1
+
+resnet50_mil:
+  backbone: "resnet50"
+  output_dim: 1
+
+convnext_tiny_mil:
+  backbone: "convnext_tiny"
+  output_dim: 1
