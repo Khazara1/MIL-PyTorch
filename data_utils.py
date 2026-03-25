@@ -2,6 +2,8 @@ import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler, DistributedSampler, Subset
 import torch.distributed as dist
 from typing import List
+import numpy as np
+import random
 
 
 def collate_fn(batch):
@@ -33,7 +35,13 @@ def collate_fn(batch):
         masks[i*max_bag_length:(i*max_bag_length+n_instances)] = 1
         labels[i] = y
 
-    return features, labels, masks, max_bag_length, instances_idx, instances_cords
+    return features, labels, masks, max_bag_length, instances_idx, instances_cords, [inputs[-1] for inputs in batch]
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    torch.manual_seed(worker_seed)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
 
 
 def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_size=1, sample_type=None, shuffle=True, seed=42, is_mil=False):
@@ -61,16 +69,16 @@ def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_si
             
             # Create dataloader
             if is_mil:
-                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g, collate_fn=collate_fn)
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g, collate_fn=collate_fn, worker_init_fn=seed_worker)
             else:
-                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g)
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g, worker_init_fn=seed_worker)
 
             return dataloader, weighted_sampler
         else:
             if is_mil:
-                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True, generator=g, collate_fn=collate_fn)
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True, generator=g, collate_fn=collate_fn, worker_init_fn=seed_worker)
             else:
-                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True, generator=g)
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True, generator=g, worker_init_fn=seed_worker)
 
             return dataloader, None
     else:
@@ -94,9 +102,9 @@ def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_si
         sampler = DistributedSampler(subset, num_replicas=world_size, rank=rank, shuffle=shuffle)
 
         if is_mil:
-            dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g, collate_fn=collate_fn)
+            dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g, collate_fn=collate_fn, worker_init_fn=seed_worker)
         else:
-            dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g)
+            dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g, worker_init_fn=seed_worker)
 
         return dataloader, sampler
 
