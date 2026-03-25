@@ -21,11 +21,15 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 import yaml
+from logger import get_logger, log_metric
+import wandb
+
 
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
 from dataset import AllImagesDataset as DatasetClass
+# from model import StandardImageModel as ModelClass
 from model import AttentionMILModel as ModelClass
 BACKBONE = "resnet18_mil"
 OPTUNA_PARAMS_FILE = "config/optuna_params.yaml" # Path to yaml file with params for optuna
@@ -33,7 +37,8 @@ MODEL_CONFIG_FILE = "config/model_args.yaml" # Path to yaml file with model para
 
 SEED = 42
 
-DEBUG = False
+DEBUG = True
+LOG_WANDB = False
 
 # Set seeds
 torch.manual_seed(SEED)
@@ -49,7 +54,7 @@ LOG_NAME = f'{BACKBONE}_{strftime("%Y-%m-%d_%H:%M:%S", gmtime())}' # Log name us
 NUM_EPOCHS = 5
 NUM_TRIALS = 8
 AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro or None (to get separate metrics for each class)
-NUM_WORKERS = 16
+NUM_WORKERS = 8
 
 is_mil = BACKBONE.endswith("_mil")
 
@@ -63,27 +68,39 @@ def save_first_n_images(dataloader, n=5, save_dir="debug_images"):
     os.makedirs(save_dir, exist_ok=True)
     count = 0
     for batch in dataloader:
-        images = batch[0] if isinstance(batch, (list, tuple)) else batch
-        for i in range(images.size(0)):
-            img = images[i].detach().cpu().numpy()
-
-            # If image has shape (C, H, W), transpose to (H, W, C)
-            if img.shape[0] <= 4:
-                img = np.transpose(img, (1, 2, 0))
-                
-            # Min-max normalization
-            img_min = img.min()
-            img_max = img.max()
-            img_norm = (img - img_min) / (img_max - img_min + 1e-8)
-
-            # If single channel, squeeze last dim
-            if img_norm.shape[-1] == 1:
-                img_norm = img_norm.squeeze(-1)
-            
-            plt.imsave(os.path.join(save_dir, f"img_{count+1}.png"), img_norm, cmap='gray' if img_norm.ndim == 2 else None)
-            count += 1
-            if count >= n:
-                return
+        if is_mil:
+            orig_imgs = batch[-1]
+            # Handle both single image and list of images
+            if isinstance(orig_imgs, torch.Tensor):
+                orig_imgs = [orig_imgs]
+            for img in orig_imgs:
+                img = img.detach().cpu().numpy()
+                if img.shape[0] <= 4:
+                    img = np.transpose(img, (1, 2, 0))
+                img_min = img.min()
+                img_max = img.max()
+                img_norm = (img - img_min) / (img_max - img_min + 1e-8)
+                if img_norm.shape[-1] == 1:
+                    img_norm = img_norm.squeeze(-1)
+                plt.imsave(os.path.join(save_dir, f"img_{count+1}.png"), img_norm, cmap='gray' if img_norm.ndim == 2 else None)
+                count += 1
+                if count >= n:
+                    return
+        else:
+            images = batch[0] if isinstance(batch, (list, tuple)) else batch
+            for i in range(images.size(0)):
+                img = images[i].detach().cpu().numpy()
+                if img.shape[0] <= 4:
+                    img = np.transpose(img, (1, 2, 0))
+                img_min = img.min()
+                img_max = img.max()
+                img_norm = (img - img_min) / (img_max - img_min + 1e-8)
+                if img_norm.shape[-1] == 1:
+                    img_norm = img_norm.squeeze(-1)
+                plt.imsave(os.path.join(save_dir, f"img_{count+1}.png"), img_norm, cmap='gray' if img_norm.ndim == 2 else None)
+                count += 1
+                if count >= n:
+                    return
 
 
 # Given a model and validation dataloader, evaluate the model performance on validation set
@@ -109,7 +126,7 @@ def validate(model, val_dl, criterion, is_ddp, rank, world_size, device):
                 inputs = inputs.to(device)
                 labels = labels.to(device)
             else:
-                inputs, labels, masks, max_bag_length, instances_idx, instances_cords = batch
+                inputs, labels, masks, max_bag_length, instances_idx, instances_cords, orig_img = batch
                 inputs = inputs.to(device)
                 labels = labels.to(device)
                 masks = masks.to(device)
@@ -168,7 +185,8 @@ def train(model: torch.nn.Module,
           is_ddp: bool, 
           rank: int, 
           world_size: int, 
-          log_name: str):
+          log_name: str,
+          logger: wandb.Run):
     # Initialize variables to track best model
     best_val_auprc = 0.0
     best_weights = model.state_dict()
@@ -201,7 +219,7 @@ def train(model: torch.nn.Module,
                 inputs = inputs.to(device)
                 labels = labels.to(device)
             else:
-                inputs, labels, masks, max_bag_length, instances_idx, instances_cords = batch
+                inputs, labels, masks, max_bag_length, instances_idx, instances_cords, orig_img = batch
                 inputs = inputs.to(device)
                 labels = labels.to(device)
                 masks = masks.to(device)
@@ -255,6 +273,22 @@ def train(model: torch.nn.Module,
             print(f"\tTrain Loss: {avg_train_loss:.4f}, Train Accuracy: {train_accuracy:.4f}, Train F1 Score: {train_f1_score:.4f}, Train AUPRC: {train_auprc:.4f}, Train AUROC: {train_auroc:.4f}, Train Precision: {train_precision:.4f}, Train Recall: {train_recall:.4f}")
             print(f"\tVal Loss: {avg_val_loss:.4f}, Val Accuracy: {val_accuracy:.4f}, Val F1 Score: {val_f1_score:.4f}, Val AUPRC: {val_auprc:.4f}, Val AUROC: {val_auroc:.4f}, Val Precision: {val_precision:.4f}, Val Recall: {val_recall:.4f}")
 
+            if logger is not None:
+                log_metric(logger, avg_train_loss, "train_loss")
+                log_metric(logger, train_accuracy, "train_accuracy")
+                log_metric(logger, train_f1_score, "train_f1_score")
+                log_metric(logger, train_auprc, "train_auprc")
+                log_metric(logger, train_auroc, "train_auroc")
+                log_metric(logger, train_precision, "train_precision")
+                log_metric(logger, train_recall, "train_recall")
+                log_metric(logger, avg_val_loss, "val_loss")
+                log_metric(logger, val_accuracy, "val_accuracy")
+                log_metric(logger, val_f1_score, "val_f1_score")
+                log_metric(logger, val_auprc, "val_auprc")
+                log_metric(logger, val_auroc, "val_auroc")
+                log_metric(logger, val_precision, "val_precision")
+                log_metric(logger, val_recall, "val_recall")
+
             if val_auprc > best_val_auprc:
                 best_val_auprc = val_auprc
                 torch.save(model.state_dict(), f"{log_name}_best.pth")
@@ -292,8 +326,8 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     ])
     
     train_transform = A.Compose([
-        A.HorizontalFlip(p=0.5),
-        A.VerticalFlip(p=0.5),
+        A.HorizontalFlip(p=0.0),
+        A.VerticalFlip(p=0.0),
         A.RandomBrightnessContrast(
             brightness_limit=0.2,
             contrast_limit=0.2,
@@ -337,16 +371,19 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         ),
 
         A.CoarseDropout(
-            num_holes_range=(1, 8),
+            num_holes_range=(4, 8),
             hole_height_range=(0.03, 0.10),
             hole_width_range=(0.03, 0.10),
             fill=0,
-            p=0.3,
+            p=1,
         ),
+        A.ToTensorV2(),
     ], seed=SEED)
 
     if is_mil:
         patcher = ImagePatcher(patch_size=params["patch_size"], overlap=params["overlap"])
+    else:
+        patcher = None
 
 
     # TODO: Those values are just an example
@@ -393,11 +430,24 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         )
 
     if DEBUG and rank == 0 and trial_number == 0:
-        save_first_n_images(train_dataloader, n=5, save_dir=f"optuna_train_images_{LOG_NAME}")
-        save_first_n_images(val_dataloader, n=5, save_dir=f"optuna_val_images_{LOG_NAME}")
+        save_first_n_images(train_dataloader, n=15, save_dir=f"optuna_train_images_{LOG_NAME}")
+        save_first_n_images(val_dataloader, n=15, save_dir=f"optuna_val_images_{LOG_NAME}")
+
+    if LOG_WANDB and rank == 0 and is_ddp:     # If distributed, only log from rank 0
+        wandb_logger = get_logger(params)
+        wandb_logger.log_model(path="model.py", name="attention_mil_model")
+    elif LOG_WANDB and not is_ddp:    # Non-distributed logging
+        wandb_logger = get_logger(params)
+        wandb_logger.log_model(path="model.py", name="attention_mil_model")
+    else:
+        wandb_logger = None
 
     # Initialize model, loss function, and optimizer
     model = build_model(ModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
+
+    torch.manual_seed(SEED)
+    np.random.seed(SEED)
+    random.seed(SEED)
 
     criterion = torch.nn.BCEWithLogitsLoss()
 
@@ -417,7 +467,8 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         is_ddp=is_ddp,
         rank=rank,
         world_size=world_size, 
-        log_name=trial_log_name)
+        log_name=trial_log_name,
+        logger=wandb_logger)
     
     if rank == 0:
         return -best_val_auprc
