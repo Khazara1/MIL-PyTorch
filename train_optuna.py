@@ -326,8 +326,8 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     ])
     
     train_transform = A.Compose([
-        A.HorizontalFlip(p=0.0),
-        A.VerticalFlip(p=0.0),
+        A.HorizontalFlip(p=0.5),
+        A.VerticalFlip(p=0.5),
         A.RandomBrightnessContrast(
             brightness_limit=0.2,
             contrast_limit=0.2,
@@ -371,13 +371,13 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         ),
 
         A.CoarseDropout(
-            num_holes_range=(4, 8),
+            num_holes_range=(1, 8),
             hole_height_range=(0.03, 0.10),
             hole_width_range=(0.03, 0.10),
             fill=0,
-            p=1,
+            p=0.3,
         ),
-        A.ToTensorV2(),
+        A.ToTensorV2()
     ], seed=SEED)
 
     if is_mil:
