@@ -232,10 +232,11 @@ class AllImagesDataset(Dataset):
         if self.image_patcher is None:
             return image, label
         else:
+            orig_img = image.clone()
             c, h, w = image.shape
             self.image_patcher.get_tiles(h, w)
             instances, instances_idx, instances_cords = self.image_patcher.convert_img_to_bag(image)
-            return instances, label, instances_idx, instances_cords
+            return instances, label, instances_idx, instances_cords, orig_img
 
 # Dataset for training without spot_mags and with YOLO used for cropping the image
 class CroppedDataset(Dataset):
@@ -354,7 +355,7 @@ class CroppedMILDataset(Dataset):
         c, h, w = image.shape
         self.image_patcher.get_tiles(h, w)
         instances, instances_idx, instances_cords = self.image_patcher.convert_img_to_bag(image)
-        return instances, label, instances_idx, instances_cords
+        return instances, label, instances_idx, instances_cords, image
 
 # Dataset for training MIL model with rectangle spot_mags cropped and YOLO used for cropping the breast
 class GetRectCroppedMILDataset(Dataset):
@@ -416,4 +417,4 @@ class GetRectCroppedMILDataset(Dataset):
         c, h, w = image.shape
         self.image_patcher.get_tiles(h, w)
         instances, instances_idx, instances_cords = self.image_patcher.convert_img_to_bag(image)
-        return instances, label, instances_idx, instances_cords
+        return instances, label, instances_idx, instances_cords, image

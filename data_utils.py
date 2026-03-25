@@ -10,10 +10,10 @@ def collate_fn(batch):
     # Aquires important dimensions
     batch_size = len(batch)
     c, h, w = batch[0][0].shape[1:]
-    max_bag_length = max([len(x) for x, y, _, _ in batch])
+    max_bag_length = max([len(x) for x, y, _, _, _ in batch])
 
-    instances_idx = [instance_idx for _, _, instance_idx, _ in batch]
-    instances_cords = [instance_cords for _, _, _, instance_cords in batch]
+    instances_idx = [instance_idx for _, _, instance_idx, _, _ in batch]
+    instances_cords = [instance_cords for _, _, _, instance_cords, _ in batch]
     
     # Initializing placeholders for features and labels
     features = torch.zeros((batch_size*max_bag_length, c, h, w))
@@ -25,7 +25,7 @@ def collate_fn(batch):
     # Empty image used for padding
     pad_image = torch.zeros((1, c, h, w))
 
-    for i, (x, y, _, _) in enumerate(batch):
+    for i, (x, y, _, _, _) in enumerate(batch):
         n_instances, c, h, w = x.shape
 
         # Set features and labels
