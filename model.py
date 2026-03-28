@@ -10,6 +10,8 @@ from torchvision.models import (
 )
 from timm.models import create_model
 
+import torch.nn.functional as F
+
 TAR_PATH = "models/convnext/best_convnext_fold_0.pth.tar"
 
 def _pick_state_dict(ckpt: dict) -> dict:
@@ -193,3 +195,75 @@ class StandardImageModel(torch.nn.Module):
     def forward(self, x):
         # Define the forward pass of your model here
         return self.model(x)
+
+class ClinicalBinnedOneHot(nn.Module):
+    def __init__(self, cat_vocab_sizes: dict):
+        super().__init__()
+
+        self.age_bins = 6     # 1..6
+        self.td_bins = 4      # 1..4
+
+        self.eth_dim = int(cat_vocab_sizes["ETHNIC_GROUP_DESC"])
+        self.race_dim = int(cat_vocab_sizes["race"])
+
+        self.out_dim = self.age_bins + self.td_bins + self.eth_dim + self.race_dim
+
+    def forward(self, clin_num: torch.Tensor, clin_cat: torch.Tensor):
+        age_idx = (clin_num[:, 0] - 1).clamp(0, self.age_bins - 1)
+        td_idx = (clin_num[:, 1] - 1).clamp(0, self.td_bins - 1)
+
+        # cumulative / ordinal one-hot
+        age_range = torch.arange(self.age_bins, device=clin_num.device).unsqueeze(0)
+        age_oh = (age_range <= age_idx.unsqueeze(1)).float()
+
+        td_range = torch.arange(self.td_bins, device=clin_num.device).unsqueeze(0)
+        td_oh = (td_range <= td_idx.unsqueeze(1)).float()
+
+        # standard one-hot
+        eth_oh = F.one_hot(clin_cat[:, 0], num_classes=self.eth_dim).float()
+        race_oh = F.one_hot(clin_cat[:, 1], num_classes=self.race_dim).float()
+
+        return torch.cat([age_oh, td_oh, eth_oh, race_oh], dim=1)
+
+
+class ClinicalOnlyClassifier(nn.Module):
+    def __init__(
+        self,
+        cat_vocab_sizes: dict,
+        hidden_dim: int = 128,
+        depth: int = 2,
+        dropout: float = 0.2,
+        activation: str = "gelu",
+    ):
+        super().__init__()
+        if cat_vocab_sizes is None:
+            raise ValueError("cat_vocab_sizes required")
+
+        self.enc = ClinicalBinnedOneHot(cat_vocab_sizes)
+        in_dim = self.enc.out_dim
+
+        act = nn.GELU() if activation.lower() == "gelu" else nn.ReLU()
+
+        layers = []
+        d = in_dim
+        for _ in range(int(depth)):
+            layers += [
+                nn.Linear(d, int(hidden_dim)),
+                act,
+                nn.Dropout(p=float(dropout)),
+            ]
+            d = int(hidden_dim)
+
+        layers += [nn.Linear(d, 1)]
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, inputs, return_features: bool = False):
+        clin_num = inputs["clin_num"]
+        clin_cat = inputs["clin_cat"]
+
+        z = self.enc(clin_num, clin_cat)
+        logits = self.net(z)
+
+        if return_features:
+            return logits, z
+        return logits 
