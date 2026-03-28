@@ -18,3 +18,5 @@ models/
 slurm-*
 
 *.pth
+
+batch.ssh
