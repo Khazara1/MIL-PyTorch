@@ -2,3 +2,5 @@ resnet18:
   backbone: "resnet18"
   num_classes: 1
   pretrained: True
+
+clinical: {}

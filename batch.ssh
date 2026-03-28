@@ -1,0 +1,24 @@
+#!/bin/bash
+#SBATCH --job-name=train_cl_final_no_spotmag_v1 #Nazwa zadania
+#SBATCH -p gpu-h100                    # albo inna kolejka GPU na Trytonie
+#SBATCH -N 1                           # 1 node
+#SBATCH --ntasks-per-node=42            # CPU per node
+#SBATCH --gpus-per-node=4              # liczba GPU na nodzie
+#SBATCH --mem=64000                    # RAM w MB
+#SBATCH --time=71:59:59                # max czas
+#SBATCH --output=/users/scratch1/s189710/Multimodalny/Outputs/%x_%j.out
+
+module load trytonp/python3/3.12.0
+
+# aktywuj swój venv
+source /users/scratch1/s189710/Multimodalny/anaconda3/etc/profile.d/conda.sh
+conda activate /users/scratch1/s189710/Multimodalny/anaconda3/envs/multimodal
+
+
+GPU_NUMBER=4
+
+cd /users/scratch1/s189710/Multimodalny/MIL-PyTorch
+
+
+# DDP start (torchrun ustawi RANK, WORLD_SIZE, LOCAL_RANK, które używa init_distributed)
+torchrun --nproc_per_node=$GPU_NUMBER train_cl.py

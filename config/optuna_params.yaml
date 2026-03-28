@@ -22,3 +22,44 @@ resnet18:
     type: suggest_categorical
     kwargs:
       choices: [4, 8, 16]
+
+clinical:
+  hidden_dim:
+    type: suggest_categorical
+    kwargs:
+      choices: [4, 8, 16, 32, 64, 128, 256]
+
+  depth:
+    type: suggest_categorical
+    kwargs:
+      choices: [1, 2, 3, 4]
+
+  dropout:
+    type: suggest_float
+    kwargs:
+      low: 0.0
+      high: 0.3
+
+  activation:
+    type: suggest_categorical
+    kwargs:
+      choices: ["gelu", "relu"]
+
+  lr:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-05
+      high: 1.0e-03
+      log: true
+
+  weight_decay:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-06
+      high: 1.0e-04
+      log: true
+
+  batch_size:
+    type: suggest_categorical
+    kwargs:
+      choices: [4, 8, 16]

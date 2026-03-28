@@ -409,3 +409,121 @@ class GetRectCroppedMILDataset(Dataset):
         self.image_patcher.get_tiles(h, w)
         instances, instances_idx, instances_cords = self.image_patcher.convert_img_to_bag(image)
         return instances, label, instances_idx, instances_cords
+    
+
+NUM_COLS = ["age_at_study", "tissueden"]
+CAT_COLS = ["ETHNIC_GROUP_DESC", "race"]
+
+UNK = "UNK"
+CD_REGEX = re.compile(r"^cd:\d+", flags=re.IGNORECASE)
+UNK_SUBSTRINGS = [
+    "unknown", "unreported", "unavailable", "not recorded",
+    "not reported", "missing", "n/a", "na", "none", "null"
+]
+
+def normalize_cat(x) -> str:
+    if pd.isna(x):
+        return UNK
+    s = str(x).strip()
+    if s == "" or CD_REGEX.match(s):
+        return UNK
+    low = s.lower()
+    for sub in UNK_SUBSTRINGS:
+        if sub in low:
+            return UNK
+    return s
+
+AGE_BINS = [40, 50, 60, 70, 80]
+
+def age_to_bin(age: float) -> int:
+    b = 0
+    for thr in AGE_BINS:
+        if age >= thr:
+            b += 1
+        else:
+            break
+    return b + 1  # 1..6
+
+
+class ClinicalOnlyDataset(Dataset):
+    def __init__(self, dataset_csv: str, cat2idx: dict = None, num_stats: dict = None) -> None:
+        super().__init__()
+
+        self.df = pd.read_csv(dataset_csv, low_memory=False)
+
+        remove_spotmag(self.df)
+        
+        self.classes_mapping = {"negative": 0, "suspicious": 1}
+        self.labels = torch.tensor(
+            self.df["label"].map(lambda x: self.classes_mapping[x]).values,
+            dtype=torch.long
+        )
+        self.classes = list(self.classes_mapping.keys())
+
+        if num_stats is None:
+            age = pd.to_numeric(self.df["age_at_study"], errors="coerce")
+            td = pd.to_numeric(self.df["tissueden"], errors="coerce")
+
+            age_median = float(age.median(skipna=True))
+            age_mean = float(age.fillna(age_median).mean())
+            age_std = float(age.fillna(age_median).std(ddof=0))
+            age_std = age_std if age_std > 1e-6 else 1.0
+
+            td_median = float(td.median(skipna=True))
+
+            self.num_stats = {
+                "age_median": age_median,
+                "age_mean": age_mean,
+                "age_std": age_std,
+                "td_median": td_median,
+            }
+        else:
+            self.num_stats = num_stats
+
+        if cat2idx is None:
+            self.cat2idx = {}
+            for col in CAT_COLS:
+                vals = self.df[col].apply(normalize_cat).unique().tolist()
+                vocab = [UNK] + sorted([v for v in vals if v != UNK])
+                self.cat2idx[col] = {v: i for i, v in enumerate(vocab)}
+        else:
+            self.cat2idx = cat2idx
+
+        self.cat_vocab_sizes = {col: len(self.cat2idx[col]) for col in CAT_COLS}
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, index):
+        row = self.df.iloc[index]
+
+        label = torch.tensor(self.classes_mapping[row["label"]], dtype=torch.long)
+
+        age = pd.to_numeric(row["age_at_study"], errors="coerce")
+        if pd.isna(age):
+            age = self.num_stats["age_median"]
+        age = float(age)
+        age_bin = age_to_bin(age)
+
+        td = pd.to_numeric(row["tissueden"], errors="coerce")
+        if pd.isna(td):
+            td = self.num_stats["td_median"]
+        td = float(td)
+        td = max(1.0, min(4.0, td))
+        td_bin = int(round(td))
+
+        clin_num = torch.tensor([age_bin, td_bin], dtype=torch.long)
+
+        eth = normalize_cat(row["ETHNIC_GROUP_DESC"])
+        race = normalize_cat(row["race"])
+
+        clin_cat = torch.tensor([
+            self.cat2idx["ETHNIC_GROUP_DESC"].get(eth, 0),
+            self.cat2idx["race"].get(race, 0),
+        ], dtype=torch.long)
+
+        inputs = {
+            "clin_num": clin_num,
+            "clin_cat": clin_cat,
+        }
+        return inputs, label
