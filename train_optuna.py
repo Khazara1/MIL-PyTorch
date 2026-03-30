@@ -29,9 +29,9 @@ import wandb
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
 from dataset import AllImagesDataset as DatasetClass
-# from model import StandardImageModel as ModelClass
-from model import AttentionMILModel as ModelClass
-BACKBONE = "resnet18_mil"
+from model import StandardImageModel, AttentionMILModel
+
+BACKBONE = "convnext_tiny"
 OPTUNA_PARAMS_FILE = "config/optuna_params.yaml" # Path to yaml file with params for optuna
 MODEL_CONFIG_FILE = "config/model_args.yaml" # Path to yaml file with model params
 
@@ -57,6 +57,11 @@ AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro o
 NUM_WORKERS = 8
 
 is_mil = BACKBONE.endswith("_mil")
+
+if is_mil:
+    ModelClass = AttentionMILModel
+else:
+    ModelClass = StandardImageModel
 
 
 def load_yaml(yaml_path):
@@ -444,10 +449,6 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
     # Initialize model, loss function, and optimizer
     model = build_model(ModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
-
-    torch.manual_seed(SEED)
-    np.random.seed(SEED)
-    random.seed(SEED)
 
     criterion = torch.nn.BCEWithLogitsLoss()
 
