@@ -8,6 +8,16 @@ resnet50:
   num_classes: 1
   pretrained: True
 
+convnext_tiny:
+  backbone: "convnext_tiny"
+  num_classes: 1
+  pretrained: True
+
+convnext_base:
+  backbone: "convnext_base"
+  num_classes: 1
+  pretrained: True
+
 resnet18_mil:
   backbone: "resnet18"
   output_dim: 1
