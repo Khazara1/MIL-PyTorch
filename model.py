@@ -8,6 +8,8 @@ from torchvision.models import (
     convnext_base,
     ConvNeXt_Base_Weights,
 )
+from timm.models import create_model
+
 TAR_PATH = "models/convnext/best_convnext_fold_0.pth.tar"
 
 def _pick_state_dict(ckpt: dict) -> dict:
@@ -54,15 +56,35 @@ def _load_tiny_ckpt_into_timm_convnext(model: nn.Module, ckpt_path: str) -> None
 
 
 class AttentionMILModel(torch.nn.Module):
-    def __init__(self, output_dim, att_dim, dropout_rate):
+    def __init__(self, backbone="resnet18", output_dim=1, params={}, emb_dim=768):
         super().__init__()
 
+        att_dim = params["att_dim"]
+        dropout_rate = params["dropout_rate"]
+
         # Feature extractor
-        self.resnet = resnet18(weights=ResNet18_Weights.DEFAULT)
-        emb_dim = self.resnet.fc.in_features
+        if backbone == "resnet18":
+            self.fe = resnet18(weights=ResNet18_Weights.DEFAULT)
+            emb_dim = self.fe.fc.in_features
+            self.fe.fc = torch.nn.Identity()
+        elif backbone == "resnet50":
+            self.fe = resnet50(weights=ResNet50_Weights.DEFAULT)
+            emb_dim = self.fe.fc.in_features
+            self.fe.fc = torch.nn.Identity()
+        elif backbone == "convnext_tiny":
+            self.fe = ConvNextFeatureExtractor()
+            self.fe = timm.create_model("convnext_tiny", pretrained=False, num_classes=0, global_pool="avg")
+            _load_tiny_ckpt_into_timm_convnext(self.fe, TAR_PATH)
+            emb_dim = self.fe.num_features
 
-        self.resnet.fc = torch.nn.Identity()
+            # Freeze params to avoid OOM error
+            for param in self.fe.parameters():
+                param.requires_grad = False
 
+        else:
+            raise ValueError("Unsupported backbone provided")
+
+        self.backbone = backbone
 
         self.fc1 = torch.nn.Linear(emb_dim, att_dim)
         self.fc2 = torch.nn.Linear(emb_dim, att_dim)
@@ -75,13 +97,13 @@ class AttentionMILModel(torch.nn.Module):
     def forward(self, X, mask, bag_size, return_att=False):
         batch_size = int(X.shape[0] / bag_size)
 
-        # Process only instances that are not masked (i.e., valid instances, not padding)
-        X = self.resnet(X[mask != 0])  # (batch_size * bag_size, emb_dim)
+        # Process only instances that are not masked (i.e., valid instances, not padding)          
+        X = self.fe(X[mask != 0])  # (batch_size * bag_size, emb_dim)
 
         # Put back the processed instances to their original positions, so that the shape is preserved (as if all instances, including padding, were processed)
-        resnet_output = torch.zeros((batch_size * bag_size, X.shape[1]), device=X.device, dtype=X.dtype)
-        resnet_output[mask != 0] = X
-        X = resnet_output
+        fe_output = torch.zeros((batch_size * bag_size, X.shape[1]), device=X.device, dtype=X.dtype)
+        fe_output[mask != 0] = X
+        X = fe_output
 
         # Reshaping to separate bags from batches
         X = X.reshape((batch_size, bag_size, -1))  # (batch_size, bag_size, emb_dim)
@@ -103,6 +125,25 @@ class AttentionMILModel(torch.nn.Module):
         else:
             return y
         
+
+class ConvNextFeatureExtractor(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+        self.feature_extractor = create_model(
+                'convnext_small.fb_in22k_ft_in1k_384',
+                num_classes=1,
+                in_chans=3,
+                pretrained=False,
+                checkpoint_path=TAR_PATH,
+                global_pool='max',
+            )
+        
+        emb_dim = self.feature_extractor.head.fc.in_features
+        self.feature_extractor.head.fc = torch.nn.Identity()
+
+    def forward(self, X):
+        return self.feature_extractor(X)
 
 class StandardImageModel(torch.nn.Module):
     def __init__(self, backbone="resnet18", num_classes=1, pretrained=True, params={}):

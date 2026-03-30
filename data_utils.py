@@ -2,9 +2,49 @@ import torch
 from torch.utils.data import DataLoader, WeightedRandomSampler, DistributedSampler, Subset
 import torch.distributed as dist
 from typing import List
+import numpy as np
+import random
 
 
-def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_size=1, sample_type=None, shuffle=True, seed=42):
+def collate_fn(batch):
+    # Aquires important dimensions
+    batch_size = len(batch)
+    c, h, w = batch[0][0].shape[1:]
+    max_bag_length = max([len(x) for x, y, _, _, _ in batch])
+
+    instances_idx = [instance_idx for _, _, instance_idx, _, _ in batch]
+    instances_cords = [instance_cords for _, _, _, instance_cords, _ in batch]
+    
+    # Initializing placeholders for features and labels
+    features = torch.zeros((batch_size*max_bag_length, c, h, w))
+    labels = torch.zeros((len(batch)), dtype=torch.long)
+
+    # Masking placeholder, mask = 1 for valid instances, 0 for padded instances
+    masks = torch.zeros((batch_size*max_bag_length))
+
+    # Empty image used for padding
+    pad_image = torch.zeros((1, c, h, w))
+
+    for i, (x, y, _, _, _) in enumerate(batch):
+        n_instances, c, h, w = x.shape
+
+        # Set features and labels
+        features[i*max_bag_length:(i*max_bag_length+n_instances)] = x
+        features[(i*max_bag_length+n_instances):(i+1)*max_bag_length] = pad_image.expand((max_bag_length-n_instances, c, h, w))
+
+        masks[i*max_bag_length:(i*max_bag_length+n_instances)] = 1
+        labels[i] = y
+
+    return features, labels, masks, max_bag_length, instances_idx, instances_cords, [inputs[-1] for inputs in batch]
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    torch.manual_seed(worker_seed)
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)
+
+
+def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_size=1, sample_type=None, shuffle=True, seed=42, is_mil=False):
     """
     Create a DataLoader for the given dataset, handling both distributed and non-distributed settings.
 
@@ -28,11 +68,19 @@ def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_si
             weighted_sampler = WeightedRandomSampler(weights=samples_weights, num_samples=len(samples_weights), replacement=True)
             
             # Create dataloader
-            dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g)
+            if is_mil:
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g, collate_fn=collate_fn, worker_init_fn=seed_worker)
+            else:
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=weighted_sampler, pin_memory=True, generator=g, worker_init_fn=seed_worker)
 
             return dataloader, weighted_sampler
         else:
-            return DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, pin_memory=True, generator=g), None
+            if is_mil:
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True, generator=g, collate_fn=collate_fn, worker_init_fn=seed_worker)
+            else:
+                dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, pin_memory=True, generator=g, worker_init_fn=seed_worker)
+
+            return dataloader, None
     else:
         if rank == 0:
             all_idx = balance_indices(targets, sample_type=sample_type)
@@ -53,7 +101,10 @@ def create_dataloader(dataset, batch_size, num_workers, is_ddp, rank=0, world_si
 
         sampler = DistributedSampler(subset, num_replicas=world_size, rank=rank, shuffle=shuffle)
 
-        dataloader = DataLoader(subset, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g)
+        if is_mil:
+            dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g, collate_fn=collate_fn, worker_init_fn=seed_worker)
+        else:
+            dataloader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=sampler, pin_memory=True, generator=g, worker_init_fn=seed_worker)
 
         return dataloader, sampler
 
