@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 import yaml
 from logger import get_logger, log_metric
 import wandb
+import copy
 
 
 """
@@ -254,9 +255,19 @@ def train(model: torch.nn.Module,
             outputs_list.extend(outputs.detach().cpu().tolist())
             targets_list.extend(labels.detach().cpu().tolist())
 
-        # Calculate train metrics
-        avg_train_loss = torch.tensor(epoch_loss / len(train_dl))
-        train_accuracy, train_f1_score, train_auprc, train_auroc, train_precision, train_recall, _ = metrics_calculator.calculate(outputs_list, targets_list)
+        gathered_outputs = gather_from_ranks(outputs_list, is_ddp, world_size)
+        gathered_targets = gather_from_ranks(targets_list, is_ddp, world_size)
+        gathered_losses = gather_from_ranks(epoch_loss, is_ddp, world_size)
+
+        if rank == 0:   
+            # Convert gathered lists to tensors and flatten them
+            gathered_losses = torch.tensor(gathered_losses).flatten()
+            gathered_outputs = torch.tensor(gathered_outputs).flatten(0, 1)
+            gathered_targets = torch.tensor(gathered_targets).flatten(0, 1)
+
+            # Calculate train metrics
+            avg_train_loss = torch.tensor(gathered_losses.mean() / len(train_dl))
+            train_accuracy, train_f1_score, train_auprc, train_auroc, train_precision, train_recall, _ = metrics_calculator.calculate(gathered_outputs, gathered_targets)
 
         # Calculate validation metrics
         res = validate(
@@ -295,7 +306,7 @@ def train(model: torch.nn.Module,
             if val_auprc > best_val_auprc:
                 best_val_auprc = val_auprc
                 torch.save(model.state_dict(), f"{log_name}_best.pth")
-                best_weights = model.state_dict()
+                best_weights = copy.deepcopy(model.state_dict())
 
 
     print("Model training complete and saved.")
