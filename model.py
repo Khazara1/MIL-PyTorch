@@ -73,6 +73,14 @@ class AttentionMILModel(torch.nn.Module):
             self.fe.fc = torch.nn.Identity()
         elif backbone == "convnext_tiny":
             self.fe = ConvNextFeatureExtractor()
+            self.fe = timm.create_model("convnext_tiny", pretrained=False, num_classes=0, global_pool="avg")
+            _load_tiny_ckpt_into_timm_convnext(self.fe, TAR_PATH)
+            emb_dim = self.fe.num_features
+
+            # Freeze params to avoid OOM error
+            for param in self.fe.parameters():
+                param.requires_grad = False
+
         else:
             raise ValueError("Unsupported backbone provided")
 
@@ -89,17 +97,13 @@ class AttentionMILModel(torch.nn.Module):
     def forward(self, X, mask, bag_size, return_att=False):
         batch_size = int(X.shape[0] / bag_size)
 
-        # Process only instances that are not masked (i.e., valid instances, not padding)
-        if self.backbone not in ["resnet18", "resnet18"]:
-            with torch.no_grad():
-                X = self.fe(X[mask != 0])  # (batch_size * bag_size, emb_dim)
-        else:
-            X = self.fe(X[mask != 0])  # (batch_size * bag_size, emb_dim)
+        # Process only instances that are not masked (i.e., valid instances, not padding)          
+        X = self.fe(X[mask != 0])  # (batch_size * bag_size, emb_dim)
 
         # Put back the processed instances to their original positions, so that the shape is preserved (as if all instances, including padding, were processed)
-        resnet_output = torch.zeros((batch_size * bag_size, X.shape[1]), device=X.device, dtype=X.dtype)
-        resnet_output[mask != 0] = X
-        X = resnet_output
+        fe_output = torch.zeros((batch_size * bag_size, X.shape[1]), device=X.device, dtype=X.dtype)
+        fe_output[mask != 0] = X
+        X = fe_output
 
         # Reshaping to separate bags from batches
         X = X.reshape((batch_size, bag_size, -1))  # (batch_size, bag_size, emb_dim)
