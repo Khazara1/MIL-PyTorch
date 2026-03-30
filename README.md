@@ -8,19 +8,17 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
-# Training on single GPU
+# Hyperparameter search with optuna
+1. Hyperparameters that will be optimized using Optuna should be set in `config/optuna_config.yaml` file. All the parameters that your model takes should also be set in `config/model_config.yaml` file.
+2. After the configs setup run:
 ```bash
-uv run train.py --data-dir path_to_dataset
+torchrun --nproc_per_node=4 train_optuna.py
 ```
+to train the model. You should set the correct `BACKBONE` inside this script so that the correct model is trained.
 
-# Training with multiple GPUs
-1. Set environment variable with number of GPUs to use during training
+# Final training
+1. After optimizing the hyperparameters you should set them inside `config/train_config.yaml` file.
+2. To run the final training, set the correct model `BACKBONE` inside `train.py` and run:
 ```bash
-export N_GPU=4  # In this case 4 GPUs will be used
-```
-
-2. Run training:
-```bash
-source .venv/bin/activate   # Activate virtual environment
-torchrun --nproc_per_node=$N_GPU train.py --data-dir path_to_dataset
+torchrun --nproc_per_node=4 train.py
 ```
