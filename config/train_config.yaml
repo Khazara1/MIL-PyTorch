@@ -1,17 +1,126 @@
-# General
-batch_size: 2
-num_epochs: 100
-lr: 1.0e-4
-num_workers: 4
-device: "cuda"
+resnet18:
+  # General
+  batch_size: 1
+  num_epochs: 100
+  lr: 1.0e-4
+  num_workers: 4
+  device: "cuda"
 
-output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  dropout_rate: 0.5
+  weight_decay: 1.0e-04
 
-# MIL specific
-patch_size: 224
-overlap: 0.5  # Overlap between instances
-attention_dim: 128  # Linear layer for calculating attention weights is of shape [attention_dim x 1]
+  # Data and metrics
+  sample_type: oversample   # Data sampling method
+  avg_method: None  # None means calculating metrics for each class separately
 
-# Data and metrics
-sample_type: oversample   # Data sampling method
-avg_method: None  # None means calculating metrics for each class separately
+resnet50:
+  # General
+  batch_size: 1
+  num_epochs: 100
+  lr: 1.0e-4
+  num_workers: 4
+  device: "cuda"
+
+  output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  dropout_rate: 0.5
+  weight_decay: 1.0e-04
+
+  # Data and metrics
+  sample_type: oversample   # Data sampling method
+  avg_method: None  # None means calculating metrics for each class separately
+
+convnext_tiny:
+  # General
+  batch_size: 1
+  num_epochs: 100
+  lr: 1.0e-4
+  num_workers: 4
+  device: "cuda"
+
+  output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  dropout_rate: 0.5
+  weight_decay: 1.0e-04
+
+  # Data and metrics
+  sample_type: oversample   # Data sampling method
+  avg_method: None  # None means calculating metrics for each class separately
+
+convnext_base:
+  # General
+  batch_size: 1
+  num_epochs: 100
+  lr: 1.0e-4
+  num_workers: 4
+  device: "cuda"
+
+  output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  dropout_rate: 0.5
+  weight_decay: 1.0e-04
+
+  # Data and metrics
+  sample_type: oversample   # Data sampling method
+  avg_method: None  # None means calculating metrics for each class separately
+
+resnet18_mil:
+  # General
+  batch_size: 1
+  num_epochs: 100
+  lr: 1.0e-4
+  num_workers: 4
+  device: "cuda"
+
+  output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  dropout_rate: 0.5
+  weight_decay: 1.0e-04
+
+  # MIL specific
+  patch_size: 224
+  overlap: 0.5  # Overlap between instances
+  att_dim: 128  # Linear layer for calculating attention weights is of shape [attention_dim x 1]
+
+  # Data and metrics
+  sample_type: oversample   # Data sampling method
+  avg_method: None  # None means calculating metrics for each class separately
+
+resnet50_mil:
+  # General
+  batch_size: 1
+  num_epochs: 100
+  lr: 1.0e-4
+  num_workers: 4
+  device: "cuda"
+
+  output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  dropout_rate: 0.5
+  weight_decay: 1.0e-04
+
+  # MIL specific
+  patch_size: 224
+  overlap: 0.5  # Overlap between instances
+  att_dim: 128  # Linear layer for calculating attention weights is of shape [attention_dim x 1]
+
+  # Data and metrics
+  sample_type: oversample   # Data sampling method
+  avg_method: None  # None means calculating metrics for each class separately
+
+convnext_tiny_mil:
+  # General
+  batch_size: 1
+  num_epochs: 100
+  lr: 1.0e-4
+  num_workers: 4
+  device: "cuda"
+
+  output_dim: 1   # Number of output neurons (-1 to inherit from number of classes)
+  dropout_rate: 0.5
+  weight_decay: 1.0e-04
+
+  # MIL specific
+  patch_size: 224
+  overlap: 0.5  # Overlap between instances
+  att_dim: 128  # Linear layer for calculating attention weights is of shape [attention_dim x 1]
+
+  # Data and metrics
+  sample_type: oversample   # Data sampling method
+  avg_method: None  # None means calculating metrics for each class separately
