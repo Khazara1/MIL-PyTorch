@@ -32,8 +32,8 @@ from dataset import AllImagesDataset as DatasetClass
 from model import StandardImageModel, AttentionMILModel
 
 BACKBONE = "convnext_tiny"
-OPTUNA_PARAMS_FILE = "config/optuna_params.yaml" # Path to yaml file with params for optuna
-MODEL_CONFIG_FILE = "config/model_args.yaml" # Path to yaml file with model params
+OPTUNA_PARAMS_FILE = "config/optuna_config.yaml" # Path to yaml file with params for optuna
+MODEL_CONFIG_FILE = "config/model_config.yaml" # Path to yaml file with model params
 
 SEED = 42
 
