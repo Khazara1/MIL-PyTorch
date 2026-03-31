@@ -198,6 +198,7 @@ def train(model: torch.nn.Module,
     # Use correct metrics calculator for classification problem
     metrics_calculator = BinaryMetricsCalculator()
     
+    scaler = torch.amp.GradScaler()
     for epoch in range(num_epochs):
         if rank == 0:
             print(f"Epoch {epoch+1}/{num_epochs} started")
@@ -213,7 +214,6 @@ def train(model: torch.nn.Module,
         else:
             iterator = train_dl
 
-        scaler = torch.amp.GradScaler()
 
         model.train()
         for batch in iterator:

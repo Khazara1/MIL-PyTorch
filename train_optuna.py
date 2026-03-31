@@ -215,8 +215,6 @@ def train(model: torch.nn.Module,
         else:
             iterator = train_dl
 
-        scaler = torch.amp.GradScaler()
-
         model.train()
         for batch in iterator:
             # Check if data is for standard model or MIL
