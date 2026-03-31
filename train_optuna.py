@@ -29,7 +29,7 @@ import copy
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
-from dataset import AllImagesDataset as DatasetClass
+from dataset import CroppedDataset as DatasetClass
 from model import StandardImageModel, AttentionMILModel
 
 BACKBONE = "resnet18"
