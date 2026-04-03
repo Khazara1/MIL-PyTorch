@@ -453,7 +453,7 @@ def objective(is_ddp, rank, world_size, local_rank, device):
         wandb_logger = None
 
     # Initialize model, loss function, and optimizer
-    model = build_model(ModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
+    model = build_model(ModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device, is_mil=is_mil)
 
     criterion = torch.nn.BCEWithLogitsLoss()
 
