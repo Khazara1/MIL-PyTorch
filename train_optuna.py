@@ -247,7 +247,6 @@ def train(model: torch.nn.Module,
                 # Use sigmoid just for metrics calculation
                 outputs = F.sigmoid(logits)
 
-
             # Model optimization step
             scaler.scale(loss).backward()
             scaler.step(optimizer)
@@ -310,10 +309,10 @@ def train(model: torch.nn.Module,
                 torch.save(model.state_dict(), f"{log_name}_best.pth")
                 best_weights = copy.deepcopy(model.state_dict())
 
-
-    print("Model training complete and saved.")
-    model.load_state_dict(best_weights)
-    torch.save(model.state_dict(), f"{log_name}_last.pth")
+    if rank == 0:
+        print("Model training complete and saved.")
+        model.load_state_dict(best_weights)
+        torch.save(model.state_dict(), f"{log_name}_last.pth")
 
     return best_val_auprc
 
@@ -459,7 +458,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         wandb_logger = None
 
     # Initialize model, loss function, and optimizer
-    model = build_model(ModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device)
+    model = build_model(ModelClass, your_model_args, is_ddp=is_ddp, rank=rank, local_rank=local_rank, device=device, is_mil=is_mil)
 
     criterion = torch.nn.BCEWithLogitsLoss()
 
