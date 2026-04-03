@@ -27,7 +27,7 @@ import copy
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
-from dataset import AllImagesDataset as DatasetClass
+from dataset import CroppedMILDataset, CroppedDataset
 from model import StandardImageModel, AttentionMILModel
 
 BACKBONE = "resnet18"
@@ -59,8 +59,10 @@ is_mil = BACKBONE.endswith("_mil")
 
 if is_mil:
     ModelClass = AttentionMILModel
+    DatasetClass = CroppedMILDataset
 else:
     ModelClass = StandardImageModel
+    DatasetClass = CroppedDataset
 
 
 def load_yaml(yaml_path):
@@ -308,10 +310,10 @@ def train(model: torch.nn.Module,
                 torch.save(model.state_dict(), f"{log_name}_best.pth")
                 best_weights = copy.deepcopy(model.state_dict())
 
-
-    print("Model training complete and saved.")
-    model.load_state_dict(best_weights)
-    torch.save(model.state_dict(), f"{log_name}_last.pth")
+    if rank == 0:
+        print("Model training complete and saved.")
+        model.load_state_dict(best_weights)
+        torch.save(model.state_dict(), f"{log_name}_last.pth")
 
     return best_val_auprc
 
