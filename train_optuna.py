@@ -29,7 +29,7 @@ import copy
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
-from dataset import CroppedDataset as DatasetClass
+from dataset import CroppedDataset, CroppedMILDataset
 from model import StandardImageModel, AttentionMILModel
 
 BACKBONE = "resnet18"
@@ -61,8 +61,10 @@ is_mil = BACKBONE.endswith("_mil")
 
 if is_mil:
     ModelClass = AttentionMILModel
+    DatasetClass = CroppedMILDataset
 else:
     ModelClass = StandardImageModel
+    DatasetClass = CroppedDataset
 
 
 def load_yaml(yaml_path):
