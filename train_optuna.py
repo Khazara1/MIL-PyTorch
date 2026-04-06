@@ -24,22 +24,27 @@ import yaml
 from logger import get_logger, log_metric
 import wandb
 import copy
+from argparse import ArgumentParser
 
 
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
 from dataset import CroppedDataset, CroppedMILDataset
-from model import StandardImageModel, AttentionMILModel
+from model import StandardImageModel, MultiAttentionMILModel
 
-BACKBONE = "resnet18"
+parser = ArgumentParser()
+parser.add_argument("--backbone", type=str, required=True, help="Backbone name. Should match the keys in config/optuna_config.yaml and config/model_config.yaml")
+args = parser.parse_args()
+
+BACKBONE = args.backbone
 OPTUNA_PARAMS_FILE = "config/optuna_config.yaml" # Path to yaml file with params for optuna
 MODEL_CONFIG_FILE = "config/model_config.yaml" # Path to yaml file with model params
 
 SEED = 42
 
-DEBUG = True
-LOG_WANDB = False
+DEBUG = False
+LOG_WANDB = True
 
 # Set seeds
 torch.manual_seed(SEED)
@@ -60,7 +65,7 @@ NUM_WORKERS = 8
 is_mil = BACKBONE.endswith("_mil")
 
 if is_mil:
-    ModelClass = AttentionMILModel
+    ModelClass = MultiAttentionMILModel
     DatasetClass = CroppedMILDataset
 else:
     ModelClass = StandardImageModel
