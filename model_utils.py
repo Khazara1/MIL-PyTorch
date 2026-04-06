@@ -40,6 +40,8 @@ def build_model(model_class, your_model_args, is_ddp, rank, local_rank, state_di
 
         if is_mil:
             model.apply(deactivate_batchnorm)
+
+        model.load_state_dict(state_dict)
     
     model = model.to(device)
     if is_ddp:
