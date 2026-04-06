@@ -316,7 +316,7 @@ class CroppedMILDataset(Dataset):
 
         self.classes_mapping = {"negative": 0, "suspicious": 1}
         
-        self.labels = torch.tensor(self.df["label"].map(lambda x: self.classes_mapping[x]))
+        self.labels = torch.tensor(self.df["label"].map(lambda x: self.classes_mapping[x]).tolist())
         self.classes = list(self.classes_mapping.keys())
 
     def __len__(self):
@@ -378,7 +378,7 @@ class GetRectCroppedMILDataset(Dataset):
 
         self.classes_mapping = {"negative": 0, "suspicious": 1}
         
-        self.labels = torch.tensor(self.df["label"].map(lambda x: self.classes_mapping[x]))
+        self.labels = torch.tensor(self.df["label"].map(lambda x: self.classes_mapping[x]).tolist())
         self.classes = list(self.classes_mapping.keys())
 
     def __len__(self):
