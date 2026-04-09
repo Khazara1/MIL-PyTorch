@@ -12,6 +12,13 @@ from timm.models import create_model
 
 import torch.nn.functional as F
 
+from sklearn.linear_model import LogisticRegression
+from xgboost import XGBClassifier
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.svm import LinearSVC, SVC
+from sklearn.naive_bayes import GaussianNB
+
 TAR_PATH = "models/convnext/best_convnext_fold_0.pth.tar"
 
 def _pick_state_dict(ckpt: dict) -> dict:
@@ -267,3 +274,136 @@ class ClinicalOnlyClassifier(nn.Module):
         if return_features:
             return logits, z
         return logits 
+
+
+
+
+class ClinicalAgeDensityClassifier(nn.Module):
+    def __init__(
+        self,
+        hidden_dim: int = 128,
+        depth: int = 2,
+        dropout: float = 0.2,
+        activation: str = "gelu",
+    ):
+        super().__init__()
+
+        self.td_bins = 4
+        in_dim = 1 + self.td_bins   # age continuous + td cumulative one-hot
+
+        act = nn.GELU() if activation.lower() == "gelu" else nn.ReLU()
+
+        layers = []
+        d = in_dim
+        for _ in range(int(depth)):
+            layers += [
+                nn.Linear(d, int(hidden_dim)),
+                act,
+                nn.Dropout(p=float(dropout)),
+            ]
+            d = int(hidden_dim)
+
+        layers += [nn.Linear(d, 1)]
+        self.net = nn.Sequential(*layers)
+
+    def forward(self, inputs, return_features: bool = False):
+        age = inputs["age"]   # [B, 1]
+        td = inputs["td"]     # [B]
+
+        td_idx = (td - 1).clamp(0, self.td_bins - 1)
+
+        td_range = torch.arange(self.td_bins, device=td.device).unsqueeze(0)
+        td_cum_oh = (td_range <= td_idx.unsqueeze(1)).float()
+
+        x = torch.cat([age, td_cum_oh], dim=1)
+        logits = self.net(x)
+
+        if return_features:
+            return logits, x
+        return logits
+
+
+def build_logreg_classifier(params: dict, seed: int = 42):
+    model = LogisticRegression(
+        C=params["C"],
+        class_weight=params["class_weight"],
+        solver=params["solver"],
+        max_iter=params["max_iter"],
+        random_state=seed,
+    )
+    return model
+
+
+def build_xgb_classifier(params: dict, seed: int = 42, scale_pos_weight: float = 1.0):
+    model = XGBClassifier(
+        objective=params["objective"],
+        eval_metric=params["eval_metric"],
+        tree_method=params["tree_method"],
+        random_state=seed,
+        n_jobs=params["n_jobs"],
+        scale_pos_weight=scale_pos_weight,
+        n_estimators=params["n_estimators"],
+        max_depth=params["max_depth"],
+        learning_rate=params["learning_rate"],
+        subsample=params["subsample"],
+        colsample_bytree=params["colsample_bytree"],
+        min_child_weight=params["min_child_weight"],
+        reg_lambda=params["reg_lambda"],
+        reg_alpha=params["reg_alpha"],
+    )
+    return model
+
+def build_dt_classifier(params: dict, seed: int = 42):
+    model = DecisionTreeClassifier(
+        criterion=params["criterion"],
+        max_depth=params["max_depth"],
+        min_samples_split=params["min_samples_split"],
+        min_samples_leaf=params["min_samples_leaf"],
+        class_weight=params["class_weight"],
+        random_state=seed,
+    )
+    return model
+
+
+def build_rf_classifier(params: dict, seed: int = 42):
+    model = RandomForestClassifier(
+        n_estimators=params["n_estimators"],
+        criterion=params["criterion"],
+        max_depth=params["max_depth"],
+        min_samples_split=params["min_samples_split"],
+        min_samples_leaf=params["min_samples_leaf"],
+        max_features=params["max_features"],
+        class_weight=params["class_weight"],
+        random_state=seed,
+        n_jobs=1,
+    )
+    return model
+
+
+def build_svm_classifier(params: dict, seed: int = 42):
+    model = LinearSVC(
+        C=params["C"],
+        class_weight=params["class_weight"],
+        max_iter=params["max_iter"],
+        dual=params["dual"],
+        random_state=seed,
+    )
+    return model
+
+
+def build_nb_classifier(params: dict):
+    model = GaussianNB(
+        var_smoothing=params["var_smoothing"],
+    )
+    return model
+
+def build_rbf_svm_classifier(params: dict, seed: int = 42):
+    model = SVC(
+        C=params["C"],
+        kernel=params["kernel"],
+        gamma=params["gamma"],
+        class_weight=params["class_weight"],
+        probability=False,
+        random_state=seed,
+    )
+    return model

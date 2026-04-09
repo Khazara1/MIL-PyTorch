@@ -21,15 +21,16 @@ import yaml
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
-from dataset import ClinicalOnlyDataset as YourDataset
-from model import ClinicalOnlyClassifier as YourModelClass
+from dataset import ClinicalAgeDensityDataset as YourDataset
+from model import ClinicalAgeDensityClassifier as YourModelClass
+
 MODEL_NAME = "clinical"
 OPTUNA_PARAMS_FILE = "config/optuna_params.yaml"
 MODEL_CONFIG_FILE = "config/model_args.yaml"
 
 SEED = 42
 
-DEBUG = False
+
 
 # Set seeds
 torch.manual_seed(SEED)
@@ -46,6 +47,8 @@ NUM_EPOCHS = 30
 NUM_TRIALS = 200
 AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro or None (to get separate metrics for each class)
 NUM_WORKERS = 16
+
+REMOVE_SPOTMAG = True   # True = usuwasz spotmagi
 
 
 def load_yaml(yaml_path):
@@ -75,8 +78,8 @@ def validate(model, val_dl, criterion, is_ddp, rank, world_size, device):
             labels = labels.to(device)
 
             clin_inputs = {
-                "clin_num": inputs["clin_num"].to(device),
-                "clin_cat": inputs["clin_cat"].to(device),
+                "age": inputs["age"].to(device),
+                "td": inputs["td"].to(device),
             }
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -153,10 +156,11 @@ def train(model: torch.nn.Module,
             optimizer.zero_grad()
 
             labels = labels.to(device)
+           
 
             clin_inputs = {
-                "clin_num": inputs["clin_num"].to(device),
-                "clin_cat": inputs["clin_cat"].to(device),
+                "age": inputs["age"].to(device),
+                "td": inputs["td"].to(device),
             }
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -239,10 +243,13 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     your_val_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean.csv"
 
     # Create dataset and dataloader
-    train_dataset = YourDataset(your_train_args)
+    train_dataset = YourDataset(
+        your_train_args,
+        num_stats=None,
+        remove_spotmag_rows=REMOVE_SPOTMAG,
+    )
     
     your_model_args = dict(model_cfg)
-    your_model_args["cat_vocab_sizes"] = train_dataset.cat_vocab_sizes
 
     your_model_args["hidden_dim"] = params["hidden_dim"]
     your_model_args["depth"] = params["depth"]
@@ -264,9 +271,9 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
     )
 
     val_dataset = YourDataset(
-    your_val_args,
-    cat2idx=train_dataset.cat2idx,
-    num_stats=train_dataset.num_stats
+        your_val_args,
+        num_stats=train_dataset.num_stats,
+        remove_spotmag_rows=REMOVE_SPOTMAG,
     )
 
     val_dataloader, val_sampler = create_dataloader(

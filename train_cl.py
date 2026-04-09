@@ -16,8 +16,8 @@ import random
 """
 TODO: HERE IMPORT YOUR DATASET AND MODEL CLASSES
 """
-from dataset import ClinicalOnlyDataset as YourDataset
-from model import ClinicalOnlyClassifier as YourModelClass
+from dataset import ClinicalAgeDensityDataset as YourDataset
+from model import ClinicalAgeDensityClassifier as YourModelClass
 
 
 SEED = 42
@@ -37,11 +37,11 @@ NUM_EPOCHS = 400
 NUM_TRIALS = 1
 AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro or None (to get separate metrics for each class)
 NUM_WORKERS = 16
-BATCH_SIZE = 8
-LR = 8.14785011593694e-05 # Learning rate
-WEIGHT_DECAY = 3.5535837825106105e-06 # Weight decay for optimizer
+BATCH_SIZE = 4
+LR = 0.0007771880015517215 # Learning rate
+WEIGHT_DECAY =  2.464075912616445e-06 # Weight decay for optimizer
 
-
+REMOVE_SPOTMAG = True
 
 
 # Given a model and validation dataloader, evaluate the model performance on validation set
@@ -64,8 +64,8 @@ def validate(model, val_dl, criterion, is_ddp, rank, world_size, device):
             labels = labels.to(device)
 
             clin_inputs = {
-                "clin_num": inputs["clin_num"].to(device),
-                "clin_cat": inputs["clin_cat"].to(device),
+                "age": inputs["age"].to(device),
+                "td": inputs["td"].to(device),
             }
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -143,8 +143,8 @@ def train(model: torch.nn.Module,
             labels = labels.to(device)
 
             clin_inputs = {
-                "clin_num": inputs["clin_num"].to(device),
-                "clin_cat": inputs["clin_cat"].to(device),
+                "age": inputs["age"].to(device),
+                "td": inputs["td"].to(device),
             }
 
             with torch.autocast(device_type="cuda", dtype=torch.float16):
@@ -216,7 +216,12 @@ def main():
     your_val_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean.csv"
 
     # Create dataset and dataloader
-    train_dataset = YourDataset(your_train_args)
+    train_dataset = YourDataset(
+        your_train_args,
+        num_stats=None,
+        remove_spotmag_rows=REMOVE_SPOTMAG,
+    )
+
     train_dataloader, train_sampler = create_dataloader(
         train_dataset,
         batch_size=BATCH_SIZE,
@@ -231,8 +236,8 @@ def main():
 
     val_dataset = YourDataset(
         your_val_args,
-        cat2idx=train_dataset.cat2idx,
-        num_stats=train_dataset.num_stats
+        num_stats=train_dataset.num_stats,
+        remove_spotmag_rows=REMOVE_SPOTMAG,
     )
 
     val_dataloader, val_sampler = create_dataloader(
@@ -248,10 +253,9 @@ def main():
     )
 
     your_model_args = {
-        "cat_vocab_sizes": train_dataset.cat_vocab_sizes,
-        "hidden_dim": 256,
-        "depth": 3,
-        "dropout": 0.19979392735238635,
+        "hidden_dim": 4,
+        "depth": 2,
+        "dropout": 0.169444358481743,
         "activation": "gelu",
     }
 
