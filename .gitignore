@@ -20,3 +20,10 @@ slurm-*
 *.pth
 
 batch.ssh
+
+shap_stare/
+
+*.joblib
+notatka.txt
+
+temp.py

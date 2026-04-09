@@ -13,6 +13,10 @@ import pydicom
 import matplotlib.pyplot as plt
 import re
 import cv2
+from sklearn.compose import ColumnTransformer
+from sklearn.impute import SimpleImputer
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 IMG_W = 1024
 IMG_H = 2048
@@ -445,13 +449,18 @@ def age_to_bin(age: float) -> int:
     return b + 1  # 1..6
 
 
+
+
+
+
+
 class ClinicalOnlyDataset(Dataset):
     def __init__(self, dataset_csv: str, cat2idx: dict = None, num_stats: dict = None) -> None:
         super().__init__()
 
         self.df = pd.read_csv(dataset_csv, low_memory=False)
 
-        remove_spotmag(self.df)
+       # remove_spotmag(self.df)
         
         self.classes_mapping = {"negative": 0, "suspicious": 1}
         self.labels = torch.tensor(
@@ -527,3 +536,197 @@ class ClinicalOnlyDataset(Dataset):
             "clin_cat": clin_cat,
         }
         return inputs, label
+    
+class ClinicalAgeDensityDataset(Dataset):
+    def __init__(self, dataset_csv: str, num_stats: dict = None, remove_spotmag_rows: bool = True) -> None:
+        super().__init__()
+
+        self.df = pd.read_csv(dataset_csv, low_memory=False)
+
+        if remove_spotmag_rows:
+            remove_spotmag(self.df)
+
+        self.classes_mapping = {"negative": 0, "suspicious": 1}
+        self.labels = torch.tensor(
+            self.df["label"].map(lambda x: self.classes_mapping[x]).values,
+            dtype=torch.long
+        )
+        self.classes = list(self.classes_mapping.keys())
+
+        if num_stats is None:
+            age = pd.to_numeric(self.df["age_at_study"], errors="coerce")
+            td = pd.to_numeric(self.df["tissueden"], errors="coerce")
+
+            age_median = float(age.median(skipna=True))
+            age_filled = age.fillna(age_median)
+
+            age_min = float(age_filled.min())
+            age_max = float(age_filled.max())
+            if abs(age_max - age_min) < 1e-8:
+                age_max = age_min + 1.0
+
+            td_median = float(td.median(skipna=True))
+
+            self.num_stats = {
+                "age_median": age_median,
+                "age_min": age_min,
+                "age_max": age_max,
+                "td_median": td_median,
+            }
+        else:
+            self.num_stats = num_stats
+
+        
+
+    def __len__(self):
+        return len(self.df)
+    
+    def _scale_age_01(self, age: float) -> float:
+        age_min = self.num_stats["age_min"]
+        age_max = self.num_stats["age_max"]
+        age_scaled = (age - age_min) / (age_max - age_min)
+        age_scaled = max(0.0, min(1.0, age_scaled))
+        return float(age_scaled)
+
+    
+
+    
+    
+    def __getitem__(self, index):
+        row = self.df.iloc[index]
+
+        label = torch.tensor(self.classes_mapping[row["label"]], dtype=torch.long)
+
+        age = pd.to_numeric(row["age_at_study"], errors="coerce")
+        if pd.isna(age):
+            age = self.num_stats["age_median"]
+        age = float(age)
+
+        td = pd.to_numeric(row["tissueden"], errors="coerce")
+        if pd.isna(td):
+            td = self.num_stats["td_median"]
+        td = float(td)
+        td = max(1.0, min(4.0, td))
+        td_bin = int(round(td))
+
+        age_scaled = self._scale_age_01(age)
+
+        inputs = {
+            "age": torch.tensor([age_scaled], dtype=torch.float32),
+            "td": torch.tensor(td_bin, dtype=torch.long),
+        }
+
+        
+
+        return inputs, label   
+    
+def prepare_clinical_tabular_dataframe(
+    dataset_csv: str,
+    remove_spotmag_rows: bool = False,
+):
+    df = pd.read_csv(dataset_csv, low_memory=False)
+
+    if remove_spotmag_rows:
+        remove_spotmag(df)
+
+    classes_mapping = {"negative": 0, "suspicious": 1}
+    y = df["label"].map(lambda x: classes_mapping[x]).astype(int)
+
+    X = df[NUM_COLS + CAT_COLS].copy()
+
+    X["age_at_study"] = pd.to_numeric(X["age_at_study"], errors="coerce")
+    X["tissueden"] = pd.to_numeric(X["tissueden"], errors="coerce")
+
+    for col in CAT_COLS:
+        X[col] = X[col].apply(normalize_cat).astype(str)
+
+    return X, y
+
+
+def build_clinical_tabular_preprocessor(scale_numeric: bool = True):
+    if scale_numeric:
+        numeric_transformer = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+                ("scaler", StandardScaler()),
+            ]
+        )
+    else:
+        numeric_transformer = Pipeline(
+            steps=[
+                ("imputer", SimpleImputer(strategy="median")),
+            ]
+        )
+
+    categorical_transformer = Pipeline(
+        steps=[
+            ("imputer", SimpleImputer(strategy="most_frequent")),
+            ("onehot", OneHotEncoder(handle_unknown="ignore")),
+        ]
+    )
+
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ("num", numeric_transformer, NUM_COLS),
+            ("cat", categorical_transformer, CAT_COLS),
+        ]
+    )
+
+    return preprocessor
+
+
+def prepare_age_density_ml_dataframe(
+    dataset_csv: str,
+    remove_spotmag_rows: bool = True,
+    num_stats: dict = None,
+):
+    """
+    Przygotowuje cechy do klasycznych modeli ML zgodnie z logiką:
+    - age: min-max do [0,1] na statystykach train
+    - tissueden: clamp do [1,4], round, cumulative one-hot
+    """
+    df = pd.read_csv(dataset_csv, low_memory=False)
+
+    if remove_spotmag_rows:
+        remove_spotmag(df)
+
+    classes_mapping = {"negative": 0, "suspicious": 1}
+    y = df["label"].map(lambda x: classes_mapping[x]).astype(int).to_numpy()
+
+    age = pd.to_numeric(df["age_at_study"], errors="coerce")
+    td = pd.to_numeric(df["tissueden"], errors="coerce")
+
+    if num_stats is None:
+        age_median = float(age.median(skipna=True))
+        age_filled = age.fillna(age_median)
+
+        age_min = float(age_filled.min())
+        age_max = float(age_filled.max())
+        if abs(age_max - age_min) < 1e-8:
+            age_max = age_min + 1.0
+
+        td_median = float(td.median(skipna=True))
+
+        num_stats = {
+            "age_median": age_median,
+            "age_min": age_min,
+            "age_max": age_max,
+            "td_median": td_median,
+        }
+
+    age = age.fillna(num_stats["age_median"]).astype(float)
+    age_scaled = (age - num_stats["age_min"]) / (num_stats["age_max"] - num_stats["age_min"])
+    age_scaled = age_scaled.clip(0.0, 1.0)
+
+    td = td.fillna(num_stats["td_median"]).astype(float)
+    td = td.clip(1.0, 4.0).round().astype(int)
+
+    X = pd.DataFrame({
+        "age": age_scaled.astype(np.float32),
+        "td_ge_1": (td >= 1).astype(np.float32),
+        "td_ge_2": (td >= 2).astype(np.float32),
+        "td_ge_3": (td >= 3).astype(np.float32),
+        "td_ge_4": (td >= 4).astype(np.float32),
+    })
+
+    return X, y, num_stats
