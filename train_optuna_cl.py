@@ -43,12 +43,12 @@ torch.backends.cudnn.benchmark = False
 
 # TODO: Change those values
 LOG_NAME = "clinical_" + strftime("%Y-%m-%d_%H:%M:%S", gmtime()) # Log name used for saving model and logging to wandb
-NUM_EPOCHS = 30
-NUM_TRIALS = 200
+NUM_EPOCHS = 15
+NUM_TRIALS = 100
 AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro or None (to get separate metrics for each class)
 NUM_WORKERS = 16
 
-REMOVE_SPOTMAG = True   # True = usuwasz spotmagi
+REMOVE_SPOTMAG = True  # True = usuwasz spotmagi
 
 
 def load_yaml(yaml_path):
@@ -239,16 +239,16 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
 
 
     # TODO: Those values are just an example
-    your_train_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean.csv"
-    your_val_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean.csv"
-
+    your_train_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean_cords_spot.csv"
+    your_val_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean_cords_spot.csv"
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     # Create dataset and dataloader
     train_dataset = YourDataset(
         your_train_args,
         num_stats=None,
         remove_spotmag_rows=REMOVE_SPOTMAG,
     )
-    
+    print(f"Train dataset size: {len(train_dataset)}")
     your_model_args = dict(model_cfg)
 
     your_model_args["hidden_dim"] = params["hidden_dim"]
@@ -275,7 +275,7 @@ def objective(trial, is_ddp, rank, world_size, local_rank, device):
         num_stats=train_dataset.num_stats,
         remove_spotmag_rows=REMOVE_SPOTMAG,
     )
-
+    print(f"Val dataset size: {len(val_dataset)}")
     val_dataloader, val_sampler = create_dataloader(
         val_dataset,
         batch_size=params["batch_size"],

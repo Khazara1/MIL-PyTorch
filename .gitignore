@@ -27,3 +27,26 @@ shap_stare/
 notatka.txt
 
 temp.py
+
+# modele
+*.pth
+*.joblib
+
+# wyniki eksperymentów
+*.png
+*.eps
+*.csv
+
+# foldery z wynikami
+multimodal_results/
+clinical_probability_exports/
+shap_stare/
+
+# dane
+data/
+head_classifier_data/
+
+# wandb
+wandb/
+
+wyniki/

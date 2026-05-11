@@ -16,13 +16,13 @@ from metrics import BinaryMetricsCalculator
 
 
 # Paths and constants
-TRAIN_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean.csv"
-TEST_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/test_split_clean.csv"
-CKPT_PATH = "/users/scratch1/s189710/Multimodalny/MIL-PyTorch/2026-04-05_13:34:43_best.pth"
+TRAIN_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean_cords_spot.csv"
+TEST_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/test_split_clean_cords_spot.csv"
+CKPT_PATH = "/users/scratch1/s189710/Multimodalny/MIL-PyTorch/2026-04-10_03:55:53_best.pth"
 
-RUN_NAME = "test_spot_age_td_v1"
+RUN_NAME = "test_no_spot_v1"
 
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 NUM_WORKERS = 16
 THRESH = 0.5
 
@@ -30,7 +30,7 @@ RUN_SHAP = True
 SHAP_BACKGROUND = 58257
 SHAP_EXPLAIN = 58257
 
-REMOVE_SPOTMAG = False
+REMOVE_SPOTMAG = True
 
 def plot_roc_curve_with_best_threshold(roc_data, auroc_score=None):
     fpr, tpr, thresholds = roc_data
@@ -220,12 +220,12 @@ def main():
         print(f"Available GPUs: {torch.cuda.device_count()}")
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     train_dataset = ClinicalAgeDensityDataset(
         TRAIN_CSV,
         remove_spotmag_rows=REMOVE_SPOTMAG
     )
-
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     val_dataset = ClinicalAgeDensityDataset(
         TEST_CSV,
         num_stats=train_dataset.num_stats,
@@ -244,9 +244,9 @@ def main():
     )
 
     model_args = {
-        "hidden_dim": 256,
+        "hidden_dim": 128,
         "depth": 2,
-        "dropout": 0.20516689853136477,
+        "dropout": 0.058348996146653224,
         "activation": "relu",
     }
 
