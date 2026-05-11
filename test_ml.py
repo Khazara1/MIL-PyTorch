@@ -24,67 +24,74 @@ from metrics import BinaryMetricsCalculator
 
 
 # Paths and constants
-TRAIN_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean.csv"
-TEST_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/test_split_clean.csv"
+TRAIN_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean_cords_spot.csv"
+TEST_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/test_split_clean_cords_spot.csv"
 
 
 MODEL_CONFIG_FILE = "config/model_args.yaml"
 
 THRESH = 0.5
 
-RUN_SHAP = True
+RUN_SHAP = False
 SHAP_BACKGROUND = 58257
 SHAP_EXPLAIN = 58257
 
-REMOVE_SPOTMAG = False
+REMOVE_SPOTMAG = True
 
-RUN_NAME = "test_spot_age_td_v1"
-MODEL_NAME = "clinical_svm_rbf"   # zmieniasz zależnie od eksperymentu
+RUN_NAME = "test_no_spot_xgb_weryfikacja_v1"
+MODEL_NAME = "clinical_xgb"   # zmieniasz zależnie od eksperymentu
+# "clinical_logreg"
+# "clinical_xgb"
+# "clinical_dt"
+# "clinical_rf"
+# "clinical_svm"
+# "clinical_nb"
+# "clinical_svm_rbf"
 SEED = 42
 
 BEST_PARAMS_ALL = {
     "clinical_logreg": {
-        "C": 1.23,
+        "C": 55.471420895759614,
         "class_weight": None,
     },
     "clinical_xgb": {
-        "n_estimators": 800,
-        "max_depth": 4,
-        "learning_rate": 0.03,
-        "subsample": 0.9,
-        "colsample_bytree": 0.8,
+        "n_estimators": 1497,
+        "max_depth": 2,
+        "learning_rate": 0.00020199257075716713,
+        "subsample": 0.4452583229967411,
+        "colsample_bytree": 0.5964296254566144,
         "min_child_weight": 3,
-        "reg_lambda": 1.0,
-        "reg_alpha": 0.01,
+        "reg_lambda": 0.8690298190207,
+        "reg_alpha": 0.003610322134211217,
     },
     "clinical_dt": {
-        "criterion": "gini",
-        "max_depth": 6,
-        "min_samples_split": 10,
-        "min_samples_leaf": 4,
-        "class_weight": None,
+        "criterion": "log_loss",
+        "max_depth": 4,
+        "min_samples_split": 4,
+        "min_samples_leaf": 6,
+        "class_weight": 'balanced',
     },
     "clinical_rf": {
-        "n_estimators": 1200,
-        "criterion": "gini",
-        "max_depth": 8,
-        "min_samples_split": 10,
-        "min_samples_leaf": 2,
+        "n_estimators": 2304,
+        "criterion": "log_loss",
+        "max_depth": 4,
+        "min_samples_split": 91,
+        "min_samples_leaf": 15,
         "max_features": "sqrt",
         "class_weight": None,
     },
     "clinical_svm": {
-        "C": 0.5,
+        "C": 0.004436926015598806,
         "class_weight": None,
     },
     "clinical_svm_rbf": {
-        "C": 2.0,
+        "C": 0.0021408012971941815,
         "kernel": "rbf",
-        "gamma": "scale",
-        "class_weight": None,
+        "gamma": "auto",
+        "class_weight": 'balanced',
     },
     "clinical_nb": {
-        "var_smoothing": 1e-9,
+        "var_smoothing": 0.00026383884554283255,
     },
 }
 
@@ -293,13 +300,13 @@ def main():
 
     model_cfg = load_yaml(MODEL_CONFIG_FILE)[MODEL_NAME]
     best_params = BEST_PARAMS_ALL[MODEL_NAME]
-
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     X_train_df, y_train, num_stats = prepare_age_density_ml_dataframe(
         TRAIN_CSV,
         remove_spotmag_rows=REMOVE_SPOTMAG,
         num_stats=None,
     )
-
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     X_test_df, y_test, _ = prepare_age_density_ml_dataframe(
         TEST_CSV,
         remove_spotmag_rows=REMOVE_SPOTMAG,

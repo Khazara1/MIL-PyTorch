@@ -22,7 +22,7 @@ from model import (
 )
 
 SEED = 42
-MODEL_NAME = "clinical_rf"   # zmieniaj na:
+MODEL_NAME = "clinical_svm_rbf"   # zmieniaj na:
 # "clinical_logreg"
 # "clinical_xgb"
 # "clinical_dt"
@@ -35,11 +35,11 @@ OPTUNA_PARAMS_FILE = "config/optuna_params.yaml"
 MODEL_CONFIG_FILE = "config/model_args.yaml"
 
 LOG_NAME = f"{MODEL_NAME}_{strftime('%Y-%m-%d_%H:%M:%S', gmtime())}"
-NUM_TRIALS = 400
+NUM_TRIALS = 200
 REMOVE_SPOTMAG = True
 THRESH = 0.5
-TRAIN_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean.csv"
-VAL_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean.csv"
+TRAIN_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean_cords_spot.csv"
+VAL_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean_cords_spot.csv"
 
 
 def set_all_seeds(seed: int):
@@ -127,13 +127,13 @@ def objective(trial):
     for param_name, config in search_space_cfg.items():
         suggest_method = getattr(trial, config["type"])
         params[param_name] = suggest_method(name=param_name, **config["kwargs"])
-
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     X_train, y_train, num_stats = prepare_age_density_ml_dataframe(
         TRAIN_CSV,
         remove_spotmag_rows=REMOVE_SPOTMAG,
         num_stats=None,
     )
-
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     X_val, y_val, _ = prepare_age_density_ml_dataframe(
         VAL_CSV,
         remove_spotmag_rows=REMOVE_SPOTMAG,

@@ -33,13 +33,13 @@ torch.backends.cudnn.benchmark = False
 
 # TODO: Change those values
 LOG_NAME = strftime("%Y-%m-%d_%H:%M:%S", gmtime()) # Log name used for saving model and logging to wandb
-NUM_EPOCHS = 400
+NUM_EPOCHS = 200
 NUM_TRIALS = 1
 AVG_METHOD = "macro"  # Averaging method for calculating metrics. Macro, micro or None (to get separate metrics for each class)
 NUM_WORKERS = 16
 BATCH_SIZE = 4
-LR = 0.0007771880015517215 # Learning rate
-WEIGHT_DECAY =  2.464075912616445e-06 # Weight decay for optimizer
+LR = 0.000511576601563356 # Learning rate
+WEIGHT_DECAY =  4.280543112361302e-05 # Weight decay for optimizer
 
 REMOVE_SPOTMAG = True
 
@@ -212,10 +212,11 @@ def main():
 
 
     # TODO: Those values are just an example
-    your_train_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean.csv"
-    your_val_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean.csv"
+    your_train_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_clean_cords_spot.csv"
+    your_val_args = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean_cords_spot.csv"
 
     # Create dataset and dataloader
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     train_dataset = YourDataset(
         your_train_args,
         num_stats=None,
@@ -233,7 +234,7 @@ def main():
         world_size=world_size,
         seed=SEED
     )
-
+    print(f"REMOVE_SPOTMAG = {REMOVE_SPOTMAG}")
     val_dataset = YourDataset(
         your_val_args,
         num_stats=train_dataset.num_stats,
@@ -253,10 +254,10 @@ def main():
     )
 
     your_model_args = {
-        "hidden_dim": 4,
+        "hidden_dim": 128,
         "depth": 2,
-        "dropout": 0.169444358481743,
-        "activation": "gelu",
+        "dropout": 0.058348996146653224,
+        "activation": "relu",
     }
 
     # Initialize model, loss function, and optimizer
