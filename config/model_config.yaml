@@ -29,3 +29,28 @@ resnet50_mil:
 convnext_tiny_mil:
   backbone: "convnext_tiny"
   output_dim: 1
+
+clinical: {}
+
+clinical_logreg:
+  solver: "lbfgs"
+  max_iter: 20000
+
+clinical_xgb:
+  objective: "binary:logistic"
+  eval_metric: "aucpr"
+  tree_method: "hist"
+  n_jobs: 1
+
+clinical_dt: {}
+
+clinical_rf:
+  n_jobs: 1
+
+clinical_svm:
+  max_iter: 100000
+  dual: "auto"
+
+clinical_nb: {}
+
+clinical_svm_rbf: {}

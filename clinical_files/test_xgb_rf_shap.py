@@ -23,7 +23,7 @@ TRAIN_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/train_split_cl
 VAL_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/val_split_clean_cords_spot.csv"
 TEST_CSV = "/users/scratch1/s189710/Multimodalny/data/data_buler/test_split_clean_cords_spot.csv"
 
-MODEL_CONFIG_FILE = "config/model_args.yaml"
+MODEL_CONFIG_FILE = "config/model_config.yaml"
 
 RUN_SHAP = True
 RUN_BALANCED_SHAP = True

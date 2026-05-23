@@ -220,3 +220,410 @@ convnext_tiny_mil:
     type: suggest_categorical
     kwargs:
       choices: [16, 32, 64, 128, 256]
+
+clinical:
+  hidden_dim:
+    type: suggest_categorical
+    kwargs:
+      choices: [4, 8, 16, 32, 64, 128, 256]
+
+  depth:
+    type: suggest_categorical
+    kwargs:
+      choices: [1, 2, 3, 4]
+
+  dropout:
+    type: suggest_float
+    kwargs:
+      low: 0.0
+      high: 0.3
+
+  activation:
+    type: suggest_categorical
+    kwargs:
+      choices: ["gelu", "relu"]
+
+  lr:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-05
+      high: 1.0e-03
+      log: true
+
+  weight_decay:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-06
+      high: 1.0e-04
+      log: true
+
+  batch_size:
+    type: suggest_categorical
+    kwargs:
+      choices: [4, 8, 16]
+
+clinical_logreg:
+  C:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-06
+      high: 1.0e+05
+      log: true
+
+  class_weight:
+    type: suggest_categorical
+    kwargs:
+      choices: [null, "balanced"]
+
+clinical_xgb:
+  n_estimators:
+    type: suggest_int
+    kwargs:
+      low: 100
+      high: 3000
+
+  max_depth:
+    type: suggest_int
+    kwargs:
+      low: 1
+      high: 12
+
+  learning_rate:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-04
+      high: 3.0e-01
+      log: true
+
+  subsample:
+    type: suggest_float
+    kwargs:
+      low: 0.4
+      high: 1.0
+
+  colsample_bytree:
+    type: suggest_float
+    kwargs:
+      low: 0.4
+      high: 1.0
+
+  min_child_weight:
+    type: suggest_int
+    kwargs:
+      low: 1
+      high: 50
+
+  reg_lambda:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-05
+      high: 1.0e+03
+      log: true
+
+  reg_alpha:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-05
+      high: 1.0e+03
+      log: true
+
+clinical_dt:
+  max_depth:
+    type: suggest_categorical
+    kwargs:
+      choices: [null, 1, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32]
+
+  min_samples_split:
+    type: suggest_int
+    kwargs:
+      low: 2
+      high: 100
+
+  min_samples_leaf:
+    type: suggest_int
+    kwargs:
+      low: 1
+      high: 50
+
+  class_weight:
+    type: suggest_categorical
+    kwargs:
+      choices: [null, "balanced"]
+
+  criterion:
+    type: suggest_categorical
+    kwargs:
+      choices: ["gini", "entropy", "log_loss"]
+
+clinical_rf:
+  n_estimators:
+    type: suggest_int
+    kwargs:
+      low: 100
+      high: 3000
+
+  max_depth:
+    type: suggest_categorical
+    kwargs:
+      choices: [null, 2, 3, 4, 5, 6, 8, 10, 12, 16, 20, 24, 32]
+
+  min_samples_split:
+    type: suggest_int
+    kwargs:
+      low: 2
+      high: 100
+
+  min_samples_leaf:
+    type: suggest_int
+    kwargs:
+      low: 1
+      high: 50
+
+  max_features:
+    type: suggest_categorical
+    kwargs:
+      choices: ["sqrt", "log2", null]
+
+  class_weight:
+    type: suggest_categorical
+    kwargs:
+      choices: [null, "balanced", "balanced_subsample"]
+
+  criterion:
+    type: suggest_categorical
+    kwargs:
+      choices: ["gini", "entropy", "log_loss"]
+
+clinical_svm:
+  C:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-06
+      high: 1.0e+05
+      log: true
+
+  class_weight:
+    type: suggest_categorical
+    kwargs:
+      choices: [null, "balanced"]
+
+clinical_nb:
+  var_smoothing:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-15
+      high: 1.0e-03
+      log: true
+
+clinical_svm_rbf:
+  C:
+    type: suggest_float
+    kwargs:
+      low: 1.0e-06
+      high: 1.0e+05
+      log: true
+
+  gamma:
+    type: suggest_categorical
+    kwargs:
+      choices: ["scale", "auto"]
+
+  class_weight:
+    type: suggest_categorical
+    kwargs:
+      choices: [null, "balanced"]
+
+  kernel:
+    type: suggest_categorical
+    kwargs:
+      choices: ["rbf"]
+
+
+multimodal:
+  logreg:
+    C:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-04
+        high: 1.0e+03
+        log: true
+    class_weight:
+      type: suggest_categorical
+      kwargs:
+        choices: [null, "balanced"]
+
+  xgb:
+    n_estimators:
+      type: suggest_int
+      kwargs:
+        low: 50
+        high: 1500
+    max_depth:
+      type: suggest_int
+      kwargs:
+        low: 1
+        high: 6
+    learning_rate:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-04
+        high: 3.0e-01
+        log: true
+    subsample:
+      type: suggest_float
+      kwargs:
+        low: 0.4
+        high: 1.0
+    colsample_bytree:
+      type: suggest_float
+      kwargs:
+        low: 0.4
+        high: 1.0
+    min_child_weight:
+      type: suggest_int
+      kwargs:
+        low: 1
+        high: 10
+    reg_lambda:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-05
+        high: 10.0
+        log: true
+    reg_alpha:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-05
+        high: 10.0
+        log: true
+
+  dt:
+    criterion:
+      type: suggest_categorical
+      kwargs:
+        choices: ["gini", "entropy", "log_loss"]
+    max_depth:
+      type: suggest_int
+      kwargs:
+        low: 1
+        high: 12
+    min_samples_split:
+      type: suggest_int
+      kwargs:
+        low: 2
+        high: 128
+    min_samples_leaf:
+      type: suggest_int
+      kwargs:
+        low: 1
+        high: 64
+    class_weight:
+      type: suggest_categorical
+      kwargs:
+        choices: [null, "balanced"]
+
+  rf:
+    n_estimators:
+      type: suggest_int
+      kwargs:
+        low: 50
+        high: 2000
+    criterion:
+      type: suggest_categorical
+      kwargs:
+        choices: ["gini", "entropy", "log_loss"]
+    max_depth:
+      type: suggest_int
+      kwargs:
+        low: 1
+        high: 16
+    min_samples_split:
+      type: suggest_int
+      kwargs:
+        low: 2
+        high: 128
+    min_samples_leaf:
+      type: suggest_int
+      kwargs:
+        low: 1
+        high: 64
+    max_features:
+      type: suggest_categorical
+      kwargs:
+        choices: ["sqrt", "log2", null]
+    class_weight:
+      type: suggest_categorical
+      kwargs:
+        choices: [null, "balanced"]
+
+  svm:
+    C:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-05
+        high: 1.0e+03
+        log: true
+    class_weight:
+      type: suggest_categorical
+      kwargs:
+        choices: [null, "balanced"]
+
+  nb:
+    var_smoothing:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-12
+        high: 1.0e-01
+        log: true
+
+  svm_rbf:
+    C:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-05
+        high: 1.0e+03
+        log: true
+    gamma:
+      type: suggest_categorical
+      kwargs:
+        choices: ["scale", "auto"]
+    class_weight:
+      type: suggest_categorical
+      kwargs:
+        choices: [null, "balanced"]
+
+  mlp:
+    hidden_dim:
+      type: suggest_categorical
+      kwargs:
+        choices: [4, 8, 16, 32, 64]
+    depth:
+      type: suggest_int
+      kwargs:
+        low: 1
+        high: 3
+    dropout:
+      type: suggest_float
+      kwargs:
+        low: 0.0
+        high: 0.5
+    activation:
+      type: suggest_categorical
+      kwargs:
+        choices: ["relu", "gelu"]
+    lr:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-05
+        high: 1.0e-02
+        log: true
+    weight_decay:
+      type: suggest_float
+      kwargs:
+        low: 1.0e-08
+        high: 1.0e-02
+        log: true
+    batch_size:
+      type: suggest_categorical
+      kwargs:
+        choices: [4, 8, 16, 32, 64, 128]

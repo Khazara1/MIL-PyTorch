@@ -73,8 +73,8 @@ SAVE_OUTPUTS_AND_TARGETS = True
 
 # jeśli chcesz bazować na yaml jak wcześniej, ustaw ścieżki i USE_YAML_CONFIGS=True
 USE_YAML_CONFIGS = False
-MODEL_CONFIG_FILE = "config/model_args.yaml"
-OPTUNA_PARAMS_FILE = "config/optuna_params.yaml"
+MODEL_CONFIG_FILE = "config/model_config.yaml"
+OPTUNA_PARAMS_FILE = "config/optuna_config.yaml"
 
 
 # ============================================================

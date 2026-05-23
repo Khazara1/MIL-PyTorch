@@ -25,8 +25,8 @@ from dataset import ClinicalAgeDensityDataset as YourDataset
 from model import ClinicalAgeDensityClassifier as YourModelClass
 
 MODEL_NAME = "clinical"
-OPTUNA_PARAMS_FILE = "config/optuna_params.yaml"
-MODEL_CONFIG_FILE = "config/model_args.yaml"
+OPTUNA_PARAMS_FILE = "config/optuna_config.yaml"
+MODEL_CONFIG_FILE = "config/model_config.yaml"
 
 SEED = 42
 

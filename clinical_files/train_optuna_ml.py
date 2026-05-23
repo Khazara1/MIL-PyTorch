@@ -31,8 +31,8 @@ MODEL_NAME = "clinical_svm_rbf"   # zmieniaj na:
 # "clinical_nb"
 # "clinical_svm_rbf"
 
-OPTUNA_PARAMS_FILE = "config/optuna_params.yaml"
-MODEL_CONFIG_FILE = "config/model_args.yaml"
+OPTUNA_PARAMS_FILE = "config/optuna_config.yaml"
+MODEL_CONFIG_FILE = "config/model_config.yaml"
 
 LOG_NAME = f"{MODEL_NAME}_{strftime('%Y-%m-%d_%H:%M:%S', gmtime())}"
 NUM_TRIALS = 200
